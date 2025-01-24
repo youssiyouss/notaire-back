@@ -10,6 +10,7 @@ use App\Mail\Auth\EmailConfirmationMail;
 use App\Mail\Auth\ResetPasswordMail;
 use App\Models\PasswordResetToken;
 use App\Models\User;
+use App\Models\Client;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -69,25 +71,23 @@ class AuthController extends Controller
     {
         try {
 
-            $lang = request()->header('Accept-Language');  // Defaults to English if not provided
-            app()->setLocale($lang);
-
             // Proceed with registration
             $validatedData = $request->validated();
 
-            $user = new User;
-            $user->name = request()->name;
-            $user->prenom = request()->prenom;
-            $user->tel =  str_replace(' ', '', request()->tel);
-            //$user->whatsapp =  'https://wa.me/' . str_replace(' ', '', request()->tel);
-            $user->email = request()->email;
-            $user->role = 'client';
-            $user->password = Hash::make(request()->password);
-            $user->remember_token = Str::random(60);
-            $user->email_verified_at = null;
-
-            $lang = request()->header('Accept-Language');
-            $user->save();
+           // Create the user with basic information
+            $user = User::create([
+                'nom' => $request->nom,
+                'prenom' => $request->prenom,
+                'email' => $request->email,
+                'tel' => str_replace(' ', '', $request->tel),
+                'password' => Hash::make($request->password),
+                'role' => 'client',  // Default role for client
+            ]);
+            // Create the client profile without additional info at first
+            Client::create([
+                'user_id' => $user->id,
+                // other client-specific fields can be added later during profile completion
+            ]);
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([

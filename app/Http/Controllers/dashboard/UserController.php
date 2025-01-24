@@ -20,15 +20,22 @@ class UserController extends Controller
     public function index()
     {
         try {
-            $clients = User::where('role','client')->get();
-            $members = User::where('role','admin')->get();
+            if (auth()->check()) {
+                $clients = User::where('role','client')->get();
+                $members = User::where('role','admin')->get();
 
-             return response()->json([
-                'clients' => $clients,
-                'members' => $members,
-            ], 200);
+                return response()->json([
+                    'clients' => $clients,
+                    'members' => $members,
+                ], 200);
+             } else {
+                return response()->json(['message' => 'Nope <3'], 401);
+            }
+
+
 
         } catch (\Exception $e) {
+            Log::error('Fetching error: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
@@ -38,56 +45,43 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
-        // Validation based on your schema
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'prenom' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email',
-            'tel' => 'required|string|max:20|unique:users,tel', // Assuming the phone number will be alphanumeric
-            'adresse' => 'nullable|string|max:255',
-            'nationalite' => 'nullable|string|max:255',
-            'sexe' => 'nullable|boolean',
-            'date_de_naissance' => 'nullable|boolean',
-            'lieu_de_naissance' => 'nullable|boolean',
-            'nom_maternelle' => 'nullable|string|max:255',
-            'prenom_mere' => 'nullable|string|max:255',
-            'prenom_pere' => 'nullable|string|max:255',
-            'numero_acte_naissance' => 'nullable|string|max:255',
-            'role' => 'nullable|string|in:client,admin', // Assuming roles are 'client' or 'admin'
-            'type_carte' => 'nullable|string|max:255',
-            'date_emission_carte' => 'nullable|date_format:Y-m-d',
-            'lieu_emission_carte' => 'nullable|string|max:255',
-            'emploi' => 'nullable|string|max:255',
-            'password' => 'required|string|min:8|confirmed',
-            'picture' => 'nullable|image|mimes:jpeg,png,jpg,svg,ico|max:2000',
+        try{
 
-        ]);
-
-        try {
-            // Creating the user
-            $user = User::create([
-                'name' => $validated['name'],
-                'prenom' => $validated['prenom'],
-                'email' => $validated['email'],
-                'tel' => $validated['tel'],
-                'adresse' => $validated['adresse'] ?? null,
-                'nationalite' => $validated['nationalite'] ?? null,
-                'sexe' => $validated['sexe'],
-                'date_de_naissance' => $validated['date_de_naissance'],
-                'lieu_de_naissance' => $validated['lieu_de_naissance'],
-                'nom_maternelle' => $validated['nom_maternelle'] ?? null,
-                'prenom_mere' => $validated['prenom_mere'] ?? null,
-                'prenom_pere' => $validated['prenom_pere'] ?? null,
-                'numero_acte_naissance' => $validated['numero_acte_naissance'] ?? null,
-                'role' => $validated['role'] ?? 'client',
-                'type_carte' => $validated['type_carte'] ?? 'identite',
-                'date_emission_carte' => $validated['date_emission_carte'] ?? null,
-                'lieu_emission_carte' => $validated['lieu_emission_carte'] ?? null,
-                'emploi' => $validated['emploi'] ?? null,
-                'password' => Hash::make($validated['password'])
+            // Validate the basic registration data
+            $request->validate([
+                'nom' => 'required|string|max:255',
+                'prenom' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email',
+                'tel' => 'required|regex:/^\+?[0-9]\d{0,14}$/|unique:users',
+                'password' => 'required|string|min:8|confirmed',
+                'sexe'=>'required|',
+                'date_de_naissance'=>'required|date',
+                'role'=>'required|string',
+                'ccp'=>'nullable|string',
+                'date_virement_salaire'=>'required|date',
+                'picture' => 'nullable|image|mimes:jpeg,png,jpg,svg,ico|max:2000'
             ]);
 
-            return response()->json(['message' => 'User created successfully', 'user' => $user], 201);
+            // Create the user with basic information
+            $user = User::create([
+                'nom' => $request->nom,
+                'prenom' => $request->prenom,
+                'email' => $request->email,
+                'tel' => $request->tel,
+                'password' => Hash::make($request->password),
+                'role' => 'employee',
+                'sexe'=>$request->sexe,
+                'date_de_naissance'=>$request->date_de_naissance,
+                'ccp'=>$request->ccp,
+                'date_virement_salaire'=>$request->date_virement_salaire
+            ]);
+
+            if($request->hasfile('picture')){
+                $picName = $request->nom.'.'.time().'.'.$request->file('picture')->getClientOriginalExtension();
+                $user->picture = $request->file('picture')->storeAs('avatars',$picName, 'public');
+            }
+            // Return success response
+            return response()->json(['message' => 'Employee registered successfully'], 201);
         } catch (\Throwable $th) {
             return response()->json(['error' => 'Error creating user.'], 500);
         }
@@ -114,26 +108,17 @@ class UserController extends Controller
     {
         // Validation based on your schema
         $validated = $request->validate([
-            'name' => 'nullable|string|max:255',
-            'prenom' => 'nullable|string|max:255',
+            'nom' => 'required|string|max:255',
+            'prenom' => 'required|string|max:255',
             'email' => 'nullable|string|email|max:255|unique:users,email,' . $id,
-            'tel' => 'nullable|string|max:20|unique:users,tel,' . $id, // Allow updating the phone number for the specific user
-            'adresse' => 'nullable|string|max:255',
-            'nationalite' => 'nullable|string|max:255',
-            'sexe' => 'nullable|boolean',
-            'date_de_naissance' => 'nullable|boolean',
-            'lieu_de_naissance' => 'nullable|boolean',
-            'nom_maternelle' => 'nullable|string|max:255',
-            'prenom_mere' => 'nullable|string|max:255',
-            'prenom_pere' => 'nullable|string|max:255',
-            'numero_acte_naissance' => 'nullable|string|max:255',
-            'role' => 'nullable|string|in:client,admin',
-            'type_carte' => 'nullable|string|max:255',
-            'date_emission_carte' => 'nullable|date_format:Y-m-d',
-            'lieu_emission_carte' => 'nullable|string|max:255',
-            'emploi' => 'nullable|string|max:255',
-            'password' => 'nullable|string|min:8|confirmed',
-            'picture' => 'nullable|image|mimes:jpeg,png,jpg,svg,ico|max:2000',
+            'tel' => 'nullable|regex:/^\+?[0-9]\d{0,14}$/|max:20|unique:users,tel,' . $id, // Allow updating the phone number for the specific user
+            'password' => 'required|string|min:8|confirmed',
+            'sexe'=>'required|',
+            'date_de_naissance'=>'required|date',
+            'role'=>'required|string',
+            'ccp'=>'nullable|string',
+            'date_virement_salaire'=>'required|date',
+            'picture'=> 'nullable|image|mimes:jpeg,png,jpg,svg,ico|max:2000',
 
         ]);
 
@@ -141,10 +126,13 @@ class UserController extends Controller
             $user = User::findOrFail($id);
             $user->update(array_filter($validated));  // Only update fields that are not null
             if($request->hasfile('picture')){
+                if($user->picture != 'assets/images/default_avatar.png'){
+                    Storage::delete($user->picture);
+                }
                 $picName = $request->name.'.'.time().'.'.$request->file('picture')->getClientOriginalExtension();
-                $membre->picture = $request->file('picture')->storeAs('avatars',$picName, 'public');
+                $user->picture = $request->file('picture')->storeAs('avatars',$picName, 'public');
             }
-            return response()->json(['message' => 'User updated successfully', 'user' => $user], 200);
+            return response()->json(['message' => 'Employee modifé avec succéss', 'user' => $user], 200);
         } catch (\Throwable $th) {
             return response()->json(['error' => 'Error updating user.'], 500);
         }

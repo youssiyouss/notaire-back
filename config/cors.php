@@ -16,15 +16,15 @@ return [
     */
 
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie', 'storage/*'],
+    'paths' => ['*'],
 
     'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => [env('FRONTEND_URL', 'http://localhost:4200')],
+    'allowed_origins' => ['*'],
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Accept-Language','Authorization', 'X-XSRF-TOKEN', 'X-CSRF-TOKEN', 'Accept', 'Origin', 'User-Agent'],
+    'allowed_headers' => ['*'],
 
     'exposed_headers' => [],
 

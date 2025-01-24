@@ -6,12 +6,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -19,27 +18,17 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'name',
+        'nom',
         'prenom',
         'email',
         'tel',
         'adresse',
-        'nationalite',
+        'password',
         'sexe',
         'date_de_naissance',
-        'lieu_de_naissance',
-        'nom_maternelle',
-        'prenom_mere',
-        'prenom_pere',
-        'numero_acte_naissance',
         'role',
-        'type_carte',
-        'date_emission_carte',
-        'lieu_emission_carte',
-        'emploi',
+        'ccp',
+        'date_virement_salaire'
     ];
 
     /**
@@ -63,5 +52,11 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    // Define the relationship to Client
+    public function client()
+    {
+        return $this->hasOne(Client::class);
     }
 }

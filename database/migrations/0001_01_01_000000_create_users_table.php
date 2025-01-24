@@ -12,29 +12,22 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
+
             $table->id();
-            $table->string('name');
+            $table->string('nom');
             $table->string('prenom');
             $table->string('email')->unique();
-            $table->string('tel')->unique(); // Ensure phone is unique
+            $table->string('tel')->unique();
             $table->string('adresse')->nullable();
-            $table->string('nationalite')->nullable();
             $table->boolean('sexe')->nullable();
-            $table->boolean('date_de_naissance')->nullable();
-            $table->boolean('lieu_de_naissance')->nullable();
-            $table->string('nom_maternelle')->nullable();
-            $table->string('prenom_mere')->nullable();
-            $table->string('prenom_pere')->nullable();
-            $table->string('numero_acte_naissance')->nullable();
+            $table->date('date_de_naissance')->nullable();
             $table->string('role')->default('client');
-            $table->string('type_carte')->default('identite');
-            $table->string('date_emission_carte')->nullable();
-            $table->string('lieu_emission_carte')->nullable();
-            $table->string('emploi')->nullable();
-            $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->string('picture')->nullable();
+            $table->string('ccp')->nullable();
+            $table->string('date_virement_salaire')->nullable();
             $table->rememberToken();
+            $table->timestamp('email_verified_at')->nullable();
             $table->timestamps();
 
 

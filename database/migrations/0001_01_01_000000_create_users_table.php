@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('password');
             $table->string('picture')->nullable();
             $table->string('ccp')->nullable();
+            $table->double('salaire')->nullable();
             $table->string('date_virement_salaire')->nullable();
             $table->rememberToken();
             $table->timestamp('email_verified_at')->nullable();

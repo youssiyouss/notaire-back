@@ -15,7 +15,6 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->append(StartSession::class);
-        $middleware->statefulApi();
         $middleware->append(LanguageInterceptorMiddleware::class);
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,

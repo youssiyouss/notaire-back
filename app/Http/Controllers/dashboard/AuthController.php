@@ -27,37 +27,33 @@ class AuthController extends Controller
     public function login(SignInRequest $request)
     {
         try{
-            $validatedData = $request->validated();
+        $credentials = $request->only('email', 'password');
 
-            if (Auth::attempt($request->only('email', 'password'))) {
-                $user = Auth::user();
-               /* if (!$user->hasVerifiedEmail()) {
-                    Auth::logout(); // Immediately log out the user
-                    return response()->json(['email_verified' => false], 403); // Custom response
-                }*/
-                $request->session()->regenerate();
+        // Check if the email exists in the database
+        $user = User::where('email', $credentials['email'])->first();
+        if (!$user) {
+            return response()->json(['error' => "Cette adresse mail n'existe pas."], 404);
+        }
 
-                return response()->json([
-                    'message' => 'Login successful',
-                    'role' => $user->role,
-                ], 200);
-            }
-            return response()->json(['error' => __('auth.failed')], 401);
-         }catch (\Error $e) {
+        // Attempt to authenticate with provided credentials
+        if (!$token = Auth::guard('api')->attempt($credentials)) {
+            return response()->json(['error' => 'Le mot de passe fourni est incorrect.'], 401);
+        }
+
+        // Successful login
+        return response()->json([
+            'message' => 'Login successful.',
+            'role' => $user->role,
+            'token' => $token,
+        ]);
+
+        }catch (\Error $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }catch(\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
-    }
-
-    public function logout(Request $request)
-    {
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-        return response()->json(['message' => __('auth.Successfully logged out')]);
     }
 
 
@@ -88,12 +84,13 @@ class AuthController extends Controller
                 'user_id' => $user->id,
                 // other client-specific fields can be added later during profile completion
             ]);
-            $token = $user->createToken('auth_token')->plainTextToken;
+
+           $token = auth()->login($user);
 
             return response()->json([
-                'token' => $token,
+                'message' => 'Please check your email for verification link',
                 'user' => $user,
-                'message' => 'Please check your email for verification link.'
+                'token' => $token,
             ], 201);
 
         } catch (\Exception $e) {

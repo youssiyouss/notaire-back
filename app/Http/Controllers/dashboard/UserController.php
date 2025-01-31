@@ -55,8 +55,8 @@ class UserController extends Controller
                 'date_de_naissance'=>'required|date',
                 'role'=>'required|string',
                 'ccp'=>'nullable|string',
-                'date_virement_salaire'=>'required|date',
-                'salaire'=>'required|numeric',
+                'date_virement_salaire'=>'nullable|date',
+                'salaire'=>'nullable|numeric',
                 'picture' => 'nullable|image|mimes:jpeg,png,jpg,svg,ico|max:2000'
             ]);
 
@@ -131,8 +131,8 @@ class UserController extends Controller
             'date_de_naissance'=>'required|date',
             'role'=>'required|string',
             'ccp'=>'nullable|string',
-            'salaire'=>'required|numeric',
-            'date_virement_salaire'=>'required|date',
+            'salaire'=>'nullable|numeric',
+            'date_virement_salaire'=>'nullable|date',
             'picture'=> 'nullable|image|mimes:jpeg,png,jpg,svg,ico|max:2000',
 
         ]);
@@ -166,7 +166,7 @@ class UserController extends Controller
 
             $user->save();
             return response()->json(['message' => 'Employee modifé avec succéss', 'user' => $user], 200);
-         }catch(\Throwable $e) {
+        }catch(\Throwable $e) {
             return response()->json(['errors' => $e->errors()], 422);
         }catch (\Exception $e) {
             return response()->json(['errors' => $e->errors()], 422);

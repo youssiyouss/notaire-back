@@ -14,6 +14,7 @@ return [
     */
 
     'name' => env('APP_NAME', 'Notaires Ain Seba'),
+    'nameArabe' => env('APP_NAME_ARABE',"مكتب الموثقين عين السبع"),
 
     /*
     |--------------------------------------------------------------------------
@@ -53,6 +54,7 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost:8000'),
+    'front_url'=> env('FRONTEND_URL', 'http://localhost:4200'),
 
     /*
     |--------------------------------------------------------------------------
@@ -78,9 +80,9 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    'locale' => env('APP_LOCALE', 'fr'),
 
-    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'fr'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 

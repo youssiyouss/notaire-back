@@ -198,6 +198,7 @@ return [
         'role'=>'المهنة',
         'ccp'=>'الحساب البنكي',
         'date_virement_salaire'=>'تاريخ إيداع المرتب',
+        'salaire'=>'المرتب',
         'password' => 'كلمة المرور',
         'password_confirmation' => 'تأكيد كلمة المرور',
     ],

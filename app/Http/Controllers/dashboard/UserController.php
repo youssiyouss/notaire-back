@@ -4,6 +4,7 @@ namespace App\Http\Controllers\dashboard;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Error;
@@ -23,8 +24,8 @@ class UserController extends Controller
     public function index()
     {
         try {
-            $clients = User::where('role','Client')->get();
-            $members = User::where('role','!=','Client')->get();
+            $clients = User::where('role','Client')->paginate(2);
+            $members = User::where('role','!=','Client')->paginate(2);
 
             return response()->json([
                 'clients' => $clients,
@@ -120,6 +121,7 @@ class UserController extends Controller
      */
     public function update(Request $request,$id)
     {
+        Log::info($request);
         // Validation based on your schema
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
@@ -129,7 +131,7 @@ class UserController extends Controller
             'adresse' =>'required|string|max:600',
             'sexe'=>'required|',
             'date_de_naissance'=>'required|date',
-            'role'=>'required|string',
+            'role'=>'nullable|string',
             'ccp'=>'nullable|string',
             'salaire'=>'nullable|numeric',
             'date_virement_salaire'=>'nullable|date',
@@ -139,39 +141,46 @@ class UserController extends Controller
 
         try {
             $user = User::findOrFail($id);
-            $user->nom = $request->nom;
-            $user->prenom = $request->prenom;
-            $user->email = $request->email;
-            $user->tel = $request->tel;
-            $user->password = Hash::make($request->password);
-            $user->adresse= $request->adresse;
-            $user->role =  $request->role;
-            $user->sexe=$request->sexe;
-            $user->date_de_naissance=$request->date_de_naissance;
-            $user->ccp=$request->ccp;
-            $user->salaire=$request->salaire;
-            $user->date_virement_salaire=$request->date_virement_salaire;
+            $requestData = $request->all();
+            Log::info($user->role);
+            // Vérifier chaque champ et garder l'ancienne valeur si non fourni
+            $user->nom = $requestData['nom'] ?? $user->nom;
+            $user->prenom = $requestData['prenom'] ?? $user->prenom;
+            $user->email = $requestData['email'] ?? $user->email;
+            $user->tel = $requestData['tel'] ?? $user->tel;
+            $user->adresse = $requestData['adresse'] ?? $user->adresse;
+            $user->sexe = $requestData['sexe'] ?? $user->sexe;
+            $user->role = $requestData['role'] ?? $user->role;
+            $user->date_de_naissance = $requestData['date_de_naissance'] ?? $user->date_de_naissance;
+            $user->ccp= $requestData['ccp'] ?? $user->ccp;
+            $user->salaire=$requestData['salaire'] ?? $user->salaire;
+            $user->date_virement_salaire=$requestData['date_virement_salaire'] ?? $user->date_virement_salaire;
+            $user->save();
 
              // Handle file upload if a new image is provided
             if ($request->hasFile('picture')) {
-                if($user->picture != 'assets/images/default_avatar.png'){
+                 // Vérifier si l'utilisateur a déjà une photo et la supprimer
+                if (!empty($user->picture) && Storage::disk('public')->exists($user->picture)) {
                     Storage::disk('public')->delete($user->picture);
                 }
-
                 $image = $request->file('picture');
-                $imageName = $request->name.'.'.time() . '.' . $image->getClientOriginalExtension();
+                $imageName = $user->nom.'.'.time() . '.' . $image->getClientOriginalExtension();
                 $path = $image->storeAs('avatars', $imageName, 'public');
                 $user->picture = $path;  // Save file path
             }
 
             $user->save();
             return response()->json(['message' => 'Employee modifé avec succéss', 'user' => $user], 200);
-        }catch(\Throwable $e) {
-            return response()->json(['errors' => $e->errors()], 422);
-        }catch (\Exception $e) {
-            return response()->json(['errors' => $e->errors()], 422);
-        }catch (ValidationException $e) {
-            return response()->json(['errors' => $e->errors()], 422);
+
+         } catch (ValidationException $e) {
+            Log::error('Database Error: ' . $e->getMessage());
+            return response()->json(['error' => $e->errors()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (QueryException $e) {
+            Log::error('Database Error: ' . $e->getMessage());
+            return response()->json(['error' => __('errors.Database error occurred')], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (\Exception $e) {
+            Log::error('Unexpected Error: ' . $e->getMessage());
+            return response()->json(['error' => __('errors.An unexpected error occurred')], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 

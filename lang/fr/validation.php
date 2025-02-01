@@ -204,6 +204,7 @@ return [
         'role'=>'Role',
         'ccp'=>'Comtpe Bancaire',
         'date_virement_salaire'=>'Date verssement du salaire',
+        'salaire'=>'salaire',
         'password_confirmation' => 'Confirmation Mot de passe',
     ],
 

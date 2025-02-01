@@ -24,8 +24,8 @@ class UserController extends Controller
     public function index()
     {
         try {
-            $clients = User::where('role','Client')->paginate(2);
-            $members = User::where('role','!=','Client')->paginate(2);
+            $clients = User::where('role','Client')->paginate(20);
+            $members = User::where('role','!=','Client')->paginate(20);
 
             return response()->json([
                 'clients' => $clients,

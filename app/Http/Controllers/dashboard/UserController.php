@@ -23,8 +23,8 @@ class UserController extends Controller
     public function index()
     {
         try {
-            $clients = User::where('role','client')->get();
-            $members = User::where('role','!=','client')->get();
+            $clients = User::where('role','Client')->get();
+            $members = User::where('role','!=','Client')->get();
 
             return response()->json([
                 'clients' => $clients,

@@ -24,5 +24,7 @@ return [
     "mail_sent_again" => "L'email de vérification a été renvoyé avec succès. Veuillez vérifier votre boîte de réception ou votre Spam",
     "expired_link"=>"Lien de vérification expiré, veuillez générer un nouveau lien.",
     "email_verified"=>"Votre email a été vérifié ; Vous pouvez vous connecter maintenant.",
-    "email_already_verified"=>"Votre email a déjà été vérifié, ou le lien n'est pas valide"
+    "email_already_verified"=>"Votre email a déjà été vérifié, ou le lien n'est pas valide",
+    "psw_changed"=>"Mot de passe modifié avec succés",
+    "psw_dont_match"=>"Votre mot de passe actuel est incorrect"
 ];

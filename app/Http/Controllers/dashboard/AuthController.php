@@ -72,8 +72,6 @@ class AuthController extends Controller
         }
     }
 
-
-
     public function autoLogin(Request $request)
     {
         $user = User::where('remember_token', $request->remember_token)->first();
@@ -94,7 +92,7 @@ class AuthController extends Controller
 
     public function user()
     {
-        return response()->json(Auth::user());
+        return response()->json(Auth::guard('api')->user());
     }
 
 
@@ -150,7 +148,6 @@ class AuthController extends Controller
             return response()->json(['error' => __('errors.An unexpected error occurred')], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-
 
     public function sendResetPasswordLink(Request $request)
     {
@@ -344,4 +341,31 @@ class AuthController extends Controller
         }
     }
 
+    public function changePassword(Request $request)
+    {
+        try {
+
+            $user = Auth::guard('api')->user();
+
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json(['error' => __('authController.psw_dont_match')], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            $user->update([
+                'password' => Hash::make($request->password),
+            ]);
+
+            return response()->json(['message' => __('authController.psw_changed')], Response::HTTP_OK);
+
+        } catch (ValidationException $e) {
+            Log::error('Database Error: ' . $e->getMessage());
+            return response()->json(['error' => $e->errors()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (QueryException $e) {
+            Log::error('Database Error: ' . $e->getMessage());
+            return response()->json(['error' => __('errors.Database error occurred')], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (\Exception $e) {
+            Log::error('Unexpected Error: ' . $e->getMessage());
+            return response()->json(['error' => __('errors.An unexpected error occurred')], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 }

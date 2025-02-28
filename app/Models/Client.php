@@ -22,8 +22,8 @@ class Client extends Model
     ];
 
     // Define the inverse relationship to User
-    public function user()
+    public function parent()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

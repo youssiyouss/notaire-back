@@ -7,10 +7,12 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'voku\\' => array($vendorDir . '/voku/portable-ascii/src/voku'),
+    'thiagoalessio\\TesseractOCR\\' => array($vendorDir . '/thiagoalessio/tesseract_ocr/src'),
     'Whoops\\' => array($vendorDir . '/filp/whoops/src/Whoops'),
     'Webmozart\\Assert\\' => array($vendorDir . '/webmozart/assert/src'),
     'Tymon\\JWTAuth\\' => array($vendorDir . '/tymon/jwt-auth/src'),
     'TijsVerkoyen\\CssToInlineStyles\\' => array($vendorDir . '/tijsverkoyen/css-to-inline-styles/src'),
+    'Thiagoalessio\\TesseractOCR\\' => array($vendorDir . '/thiagoalessio/tesseract_ocr/src'),
     'Tests\\' => array($baseDir . '/tests'),
     'Termwind\\' => array($vendorDir . '/nunomaduro/termwind/src'),
     'Symfony\\Polyfill\\Uuid\\' => array($vendorDir . '/symfony/polyfill-uuid'),

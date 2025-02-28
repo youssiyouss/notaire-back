@@ -9,6 +9,7 @@
         "php": "^8.2",
         "laravel/framework": "^11.31",
         "laravel/tinker": "^2.9",
+        "thiagoalessio/tesseract_ocr": "^2.13",
         "tymon/jwt-auth": "^2.1"
     },
     "require-dev": {
@@ -25,7 +26,8 @@
         "psr-4": {
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
-            "Database\\Seeders\\": "database/seeders/"
+            "Database\\Seeders\\": "database/seeders/",
+            "Thiagoalessio\\TesseractOCR\\": "vendor/thiagoalessio/tesseract_ocr/src/"
         }
     },
     "autoload-dev": {

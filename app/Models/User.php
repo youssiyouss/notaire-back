@@ -72,4 +72,15 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return $this->hasOne(Client::class);
     }
+
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by'); // Self-referencing relationship
+    }
+
+      public function updator()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
 }

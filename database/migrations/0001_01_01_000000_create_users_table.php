@@ -19,18 +19,21 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('tel')->unique();
             $table->string('adresse')->nullable();
-            $table->boolean('sexe')->nullable();
+            $table->enum('sexe', ['male', 'female'])->nullable();
             $table->date('date_de_naissance')->nullable();
             $table->string('role')->default('client');
             $table->string('password');
             $table->string('picture')->nullable();
             $table->string('ccp')->nullable();
-            $table->double('salaire')->nullable();
+            $table->decimal('salaire', 10, 2)->nullable();
             $table->string('date_virement_salaire')->nullable();
             $table->rememberToken();
             $table->timestamp('email_verified_at')->nullable();
+            $table->foreignId('created_by')->nullable();
+            $table->foreignId('updated_by')->nullable();
+            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
             $table->timestamps();
-
 
         });
 

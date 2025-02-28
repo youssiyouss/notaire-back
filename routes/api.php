@@ -27,7 +27,9 @@ Route::post('/change-password', [AuthController::class, 'changePassword']);
 
 
 Route::middleware('auth:api')->group(function () {
-    Route::resource('clients', ClientController::class);
     Route::resource('users', UserController::class);
+    Route::resource('clients', ClientController::class);
+    Route::post('/process_image', [ClientController::class, 'process_image']);
+
 });
 

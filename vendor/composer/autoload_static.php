@@ -576,6 +576,7 @@ class ComposerStaticInit626b9e7ddd47fb7eff9aaa53cce0c9ad
         'App\\Models\\EmailVerification' => __DIR__ . '/../..' . '/app/Models/EmailVerification.php',
         'App\\Models\\PasswordResetToken' => __DIR__ . '/../..' . '/app/Models/PasswordResetToken.php',
         'App\\Models\\User' => __DIR__ . '/../..' . '/app/Models/User.php',
+        'App\\Models\\User_Document' => __DIR__ . '/../..' . '/app/Models/User_Document.php',
         'App\\Providers\\AppServiceProvider' => __DIR__ . '/../..' . '/app/Providers/AppServiceProvider.php',
         'Attribute' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
         'Brick\\Math\\BigDecimal' => __DIR__ . '/..' . '/brick/math/src/BigDecimal.php',

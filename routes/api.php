@@ -30,6 +30,7 @@ Route::middleware('auth:api')->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('clients', ClientController::class);
     Route::post('/process_image', [ClientController::class, 'process_image']);
+    Route::post('/extract_text', [ClientController::class, 'extractText']);
 
 });
 

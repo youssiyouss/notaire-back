@@ -41,6 +41,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'date_de_naissance',
         'role',
         'ccp',
+        'salaire',
         'date_virement_salaire'
     ];
 
@@ -73,13 +74,17 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $this->hasOne(Client::class);
     }
 
+    public function documents()
+    {
+        return $this->hasMany(User_Document::class, 'user_id');
+    }
 
     public function creator()
     {
-        return $this->belongsTo(User::class, 'created_by'); // Self-referencing relationship
+        return $this->belongsTo(User::class, 'created_by');
     }
 
-      public function updator()
+    public function updator()
     {
         return $this->belongsTo(User::class, 'updated_by');
     }

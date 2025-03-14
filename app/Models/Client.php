@@ -8,17 +8,13 @@ class Client extends Model
 {
 
    protected $fillable = [
+        'user_id',
         'nationalite',
         'lieu_de_naissance',
         'nom_maternelle',
         'prenom_mere',
         'prenom_pere',
-        'numero_acte_naissance',
-        'type_carte',
-        'date_emission_carte',
-        'lieu_emission_carte',
         'emploi',
-        'user_id'
     ];
 
     // Define the inverse relationship to User
@@ -26,4 +22,5 @@ class Client extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
 }

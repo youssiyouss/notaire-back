@@ -28,6 +28,7 @@ return array(
     'App\\Models\\EmailVerification' => $baseDir . '/app/Models/EmailVerification.php',
     'App\\Models\\PasswordResetToken' => $baseDir . '/app/Models/PasswordResetToken.php',
     'App\\Models\\User' => $baseDir . '/app/Models/User.php',
+    'App\\Models\\User_Document' => $baseDir . '/app/Models/User_Document.php',
     'App\\Providers\\AppServiceProvider' => $baseDir . '/app/Providers/AppServiceProvider.php',
     'Attribute' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
     'Brick\\Math\\BigDecimal' => $vendorDir . '/brick/math/src/BigDecimal.php',

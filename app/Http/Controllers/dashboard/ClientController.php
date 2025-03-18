@@ -488,8 +488,8 @@ class ClientController extends Controller
     {
         $response = Http::attach(
             'image', file_get_contents($request->file('image')->path()), 'image.jpg'
-        )->post('http://127.0.0.1:5000/extract_text');
-
+        )->timeout(120)->post('http://127.0.0.1:5000/extract_text');
+        Log::info('OCR Response:', $response->json());
         return response()->json($response->json());
     }
 }

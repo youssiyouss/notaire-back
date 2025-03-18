@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('clients', function (Blueprint $table) {
             $table->id();
+            $table->string('type');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->string('nationalite')->default("جزائرية");
             $table->string('lieu_de_naissance')->nullable();

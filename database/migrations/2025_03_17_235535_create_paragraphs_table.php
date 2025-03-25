@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('paragraphs', function (Blueprint $table) {
             $table->id();
             $table->string('type');
+            $table->string('title');
             $table->text('content');
             $table->foreignId('contract_subtype_id')->constrained()->onDelete('cascade');
             $table->foreignId('created_by')->nullable();

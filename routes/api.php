@@ -8,6 +8,7 @@ use App\Http\Controllers\dashboard\UserController;
 use App\Http\Controllers\dashboard\ClientController;
 use App\Http\Controllers\dashboard\ContractTypeController;
 use App\Http\Controllers\dashboard\ContractController;
+use App\Http\Controllers\dashboard\ParagraphController;
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -38,6 +39,8 @@ Route::middleware('auth:api')->group(function () {
     Route::post('contract-types/{contractTypeId}/subtypes', [ContractTypeController::class, 'addSubType']);
     Route::post('contract-types/{contractTypeId}/rename', [ContractTypeController::class, 'rename']);
     Route::resource('contracs', ContractController::class);
+    Route::resource('paragraphs', ParagraphController::class);
+    Route::get('soustype/{subcategoryId}/paragraphes', [ParagraphController::class, 'getBySubcategory']);
 
 });
 

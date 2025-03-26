@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use RealRashid\SweetAlert\Facades\Alert;
 use Illuminate\Support\Facades\Log;
+use App\Models\Contract;
+use App\Models\User;
 
 class ContractController extends Controller
 {
@@ -15,7 +17,7 @@ class ContractController extends Controller
     public function index()
     {
         try {
-            $contracts = Contract::with('sub_categories')->paginate(20);
+            $contracts = Contract::with('sub_categories')->get();
 
             return response()->json([
                 'contracts' => $contracts,
@@ -30,10 +32,23 @@ class ContractController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function search_users(Request $request)
     {
-        //
+        $query = $request->input('search'); // Correct way to retrieve POST data
+         \Log::info('Search query: ' . $request->input('search'));
+
+        $users = User::where('nom', 'LIKE', "%{$query}%")
+            ->orWhere('prenom', 'LIKE', "%{$query}%")
+            ->orWhere('email', 'LIKE', "%{$query}%")
+            ->orWhere('date_de_naissance', 'LIKE', "%{$query}%")
+            ->limit(10)
+            ->get();
+
+        \Log::info("Users found: " . json_encode($users));
+
+        return response()->json($users);
     }
+
 
     /**
      * Store a newly created resource in storage.
@@ -50,7 +65,7 @@ class ContractController extends Controller
             $contract = Contract::create([
                 'client_id' => $validated['client_id'],
                 'contract_subtype_id' => $validated['contract_subtype_id'],
-                'constatustent' => $validated['status'],
+                'status' => $validated['status'],
                 'content' => $validated['content'],
                 'created_by' => auth()->id(),
             ]);

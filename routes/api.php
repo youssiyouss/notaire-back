@@ -38,9 +38,15 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('contracts_sub_type/{id}', [ContractTypeController::class, 'deleteSubType']);
     Route::post('contract-types/{contractTypeId}/subtypes', [ContractTypeController::class, 'addSubType']);
     Route::post('contract-types/{contractTypeId}/rename', [ContractTypeController::class, 'rename']);
-    Route::resource('contracs', ContractController::class);
+    Route::resource('contracts', ContractController::class);
     Route::resource('paragraphs', ParagraphController::class);
     Route::get('soustype/{subcategoryId}/paragraphes', [ParagraphController::class, 'getBySubcategory']);
 
+
+    Route::get('/notaires', [UserController::class, 'getNotaryOffices']);
+    Route::get('/contract-types', [ContractController::class, 'getContractTypes']);
+    Route::get('/clients', [ContractController::class, 'searchClients']);
+    Route::get('/buyers', [ContractController::class, 'searchBuyers']);
+    Route::get('/get_users', [ContractController::class, 'search_users']);
 });
 

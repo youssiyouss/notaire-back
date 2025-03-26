@@ -38,6 +38,23 @@ class UserController extends Controller
         }
     }
 
+     public function getNotaryOffices()
+    {
+        try {
+            $notaires = User::where('role','Notaire')->get();
+
+            return response()->json([
+
+                'notaires' => $notaires,
+           ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Fetching error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+
     /**
      * Store a newly created resource in storage.
      */

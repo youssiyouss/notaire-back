@@ -14,9 +14,8 @@ return new class extends Migration
         Schema::create('contracts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained()->onDelete('cascade');
-            $table->foreignId('contract_subtype_id')->constrained()->onDelete('cascade');
-            $table->enum('status', ['draft', 'in_progress', 'completed'])->default('draft');
-            $table->json('content'); // Stores final formatted contract (paragraphs, data)
+            $table->foreignId('template_id')->constrained('contract_templates')->cascadeOnDelete();
+            $table->longText('content'); // Final contract content with replaced values (allows large content)
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->foreignId('updated_by')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();

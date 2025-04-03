@@ -11,10 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('contract_subtypes', function (Blueprint $table) {
+        Schema::create('contract_templates', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('contract_type_id')->constrained()->onDelete('cascade');
-            $table->string('name');
+            $table->foreignId('contract_type_id')->constrained('contract_types')->onDelete('cascade');
+            $table->string('contract_subtype');
+            $table->longText('content');
+            $table->json('attributes');
+            $table->json('pronoun_transformations');
             $table->foreignId('created_by')->nullable();
             $table->foreignId('updated_by')->nullable();
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
@@ -29,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('contract_subtypes');
+        Schema::dropIfExists('contract_templates');
     }
 };

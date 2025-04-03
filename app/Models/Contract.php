@@ -7,8 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 class Contract extends Model
 {
     protected $fillable = [
-        'client_id', 'contract_subtype_id', 'status', 'content', 'created_by', 'updated_by'
+        'client_id', 'template_id', 'content', 'created_by', 'updated_by'
     ];
+
+
+    public function template() {
+        return $this->belongsTo(ContractTemplate::class);
+    }
+
+    public function attributes() {
+        return $this->hasMany(ContractAttributes::class);
+    }
 
     public function client() {
         return $this->belongsTo(Client::class);

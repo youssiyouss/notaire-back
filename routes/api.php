@@ -8,7 +8,8 @@ use App\Http\Controllers\dashboard\UserController;
 use App\Http\Controllers\dashboard\ClientController;
 use App\Http\Controllers\dashboard\ContractTypeController;
 use App\Http\Controllers\dashboard\ContractController;
-use App\Http\Controllers\dashboard\ParagraphController;
+use App\Http\Controllers\dashboard\ContractAttributesController;
+use App\Http\Controllers\dashboard\ContractTemplateController;
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -38,15 +39,23 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('contracts_sub_type/{id}', [ContractTypeController::class, 'deleteSubType']);
     Route::post('contract-types/{contractTypeId}/subtypes', [ContractTypeController::class, 'addSubType']);
     Route::post('contract-types/{contractTypeId}/rename', [ContractTypeController::class, 'rename']);
+    Route::post('contract-subtypes/{contractSubTypeId}/rename', [ContractTypeController::class, 'renameSubType']);
     Route::resource('contracts', ContractController::class);
-    Route::resource('paragraphs', ParagraphController::class);
-    Route::get('soustype/{subcategoryId}/paragraphes', [ParagraphController::class, 'getBySubcategory']);
 
+    Route::prefix('contract-attributes')->group(function () {
+        Route::post('/', [ContractAttributesController::class, 'store']); // Add attributes
+        Route::get('/{contract_subtype_id}', [ContractAttributesController::class, 'index']); // List attributes
+        Route::delete('/{id}', [ContractAttributesController::class, 'delete']); // Delete an attribute
+        Route::put('/{id}', [ContractAttributesController::class, 'rename']); // Rename an attribute
+    });
 
     Route::get('/notaires', [UserController::class, 'getNotaryOffices']);
     Route::get('/contract-types', [ContractController::class, 'getContractTypes']);
     Route::get('/clients', [ContractController::class, 'searchClients']);
     Route::get('/buyers', [ContractController::class, 'searchBuyers']);
     Route::get('/get_users', [ContractController::class, 'search_users']);
+
+    Route::resource('contract_templates', ContractTemplateController::class);
+
 });
 

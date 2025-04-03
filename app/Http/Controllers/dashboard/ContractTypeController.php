@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use RealRashid\SweetAlert\Facades\Alert;
 use Illuminate\Support\Facades\Log;
 use App\Models\ContractType;
-use App\Models\ContractSubtype;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -18,7 +17,7 @@ class ContractTypeController extends Controller
      */
     public function index()
     {
-        $contractTypes = ContractType::with('subtypes')->get();
+        $contractTypes = ContractType::all();
         return response()->json($contractTypes);
     }
 
@@ -39,8 +38,6 @@ class ContractTypeController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'type_contrat' => 'required|string|max:255|unique:contract_types,name',
-                'sous_type_contrats' => 'required|array',
-                'sous_type_contrats.*' => 'required|string|max:255',
             ]);
 
             if ($validator->fails()) {
@@ -52,18 +49,9 @@ class ContractTypeController extends Controller
                 'created_by' =>  auth()->id()
             ]);
 
-            foreach ($request->sous_type_contrats as $subtypeName) {
-                ContractSubtype::create([
-                    'contract_type_id' => $contractType->id,
-                    'name' => $subtypeName,
-                    'created_by' =>  auth()->id()
-                ]);
-            }
-
             return response()->json([
-                'message' => 'Contract type and subtypes saved successfully',
-                'contractType' => $contractType,
-                'subtypes' => $contractType->subtypes
+                'message' => 'Contract type saved successfully',
+                'contractType' => $contractType
             ], 201);
 
         } catch (\Exception $e) {
@@ -102,11 +90,10 @@ class ContractTypeController extends Controller
     {
         try {
             $contractType = ContractType::findOrFail($id);
-            $contractType->subtypes()->delete(); // Supprimer d'abord les sous-types
             $contractType->delete(); // Puis supprimer le type de contrat
 
             return response()->json([
-                'message' => __('Le type de contrat et ses sous-types ont été supprimés avec succès.')
+                'message' => __('Le type de contrat a été supprimé avec succès.')
             ], 200);
         } catch (\Exception $e) {
             Log::error("Erreur lors de la suppression du type de contrat: " . $e->getMessage());
@@ -114,52 +101,6 @@ class ContractTypeController extends Controller
             return response()->json([
                 'message' => __('Une erreur est survenue lors de la suppression du type de contrat. Veuillez réessayer.')
             ], 500);
-        }
-    }
-
-    /**
-     * Supprimer un sous-type spécifique.
-     */
-    public function deleteSubType(string $id)
-    {
-        try {
-            $subtype = ContractSubtype::findOrFail($id);
-            $subtype->delete();
-
-            return response()->json([
-                'message' => __('Le sous-type de contrat a été supprimé avec succès.')
-            ], 200);
-        } catch (\Exception $e) {
-            Log::error("Erreur lors de la suppression du sous-type de contrat: " . $e->getMessage());
-
-            return response()->json([
-                'message' => __('Une erreur est survenue lors de la suppression du sous-type de contrat. Veuillez réessayer.')
-            ], 500);
-        }
-    }
-
-    public function addSubType(Request $request, $contractTypeId)
-    {
-        try {
-            $request->validate([
-                'name' => 'required|string|max:255',
-            ]);
-
-            $contractType = ContractType::findOrFail($contractTypeId);
-            $subtype = $contractType->subtypes()->create([
-                'name' => $request->name,
-            ]);
-
-            return response()->json([
-                'message' => 'Sous-type ajouté avec succès',
-                'subtype' => $subtype,
-            ], 201);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['error' => $e->errors()], 422);
-        } catch (\Exception $e) {
-            Log::error("Erreur lors de l'ajout d'un sous-type : " . $e->getMessage());
-            return response()->json(['error' => "Une erreur est survenue, veuillez réessayer."], 500);
         }
     }
 
@@ -211,7 +152,6 @@ class ContractTypeController extends Controller
             ], 500);
         }
     }
-
 
 
 }

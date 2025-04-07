@@ -12,6 +12,11 @@ class ContractTemplate extends Model
         return $this->hasMany(Contract::class);
     }
 
+    public function contractType()
+    {
+        return $this->belongsTo(ContractType::class);
+    }
+
     public function creator() {
         return $this->belongsTo(User::class, 'created_by');
     }

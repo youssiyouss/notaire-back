@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Contract extends Model
 {
     protected $fillable = [
-        'client_id', 'template_id', 'content', 'created_by', 'updated_by'
+        'client_id', 'template_id', 'content','partAstate','partBstate', 'created_by', 'updated_by'
     ];
 
 
@@ -19,8 +19,9 @@ class Contract extends Model
         return $this->hasMany(ContractAttributes::class);
     }
 
-    public function client() {
-        return $this->belongsTo(Client::class);
+    public function clients()
+    {
+        return $this->belongsToMany(Client::class, 'contract_client'); // Specify the correct pivot table name
     }
 
     public function creator() {

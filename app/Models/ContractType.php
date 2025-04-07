@@ -8,6 +8,11 @@ class ContractType extends Model
 {
     protected $fillable = ['name','created_by','updated_by'];
 
+    public function contractTemplates()
+    {
+        return $this->hasMany(ContractTemplate::class, 'contract_type_id');
+    }
+
     public function creator() {
         return $this->belongsTo(User::class, 'created_by');
     }

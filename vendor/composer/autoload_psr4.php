@@ -8,6 +8,7 @@ $baseDir = dirname($vendorDir);
 return array(
     'voku\\' => array($vendorDir . '/voku/portable-ascii/src/voku'),
     'thiagoalessio\\TesseractOCR\\' => array($vendorDir . '/thiagoalessio/tesseract_ocr/src'),
+    'setasign\\Fpdi\\' => array($vendorDir . '/setasign/fpdi/src'),
     'Whoops\\' => array($vendorDir . '/filp/whoops/src/Whoops'),
     'Webmozart\\Assert\\' => array($vendorDir . '/webmozart/assert/src'),
     'Tymon\\JWTAuth\\' => array($vendorDir . '/tymon/jwt-auth/src'),
@@ -57,6 +58,9 @@ return array(
     'PhpParser\\' => array($vendorDir . '/nikic/php-parser/lib/PhpParser'),
     'PhpOption\\' => array($vendorDir . '/phpoption/phpoption/src/PhpOption'),
     'NunoMaduro\\Collision\\' => array($vendorDir . '/nunomaduro/collision/src'),
+    'Mpdf\\PsrLogAwareTrait\\' => array($vendorDir . '/mpdf/psr-log-aware-trait/src'),
+    'Mpdf\\PsrHttpMessageShim\\' => array($vendorDir . '/mpdf/psr-http-message-shim/src'),
+    'Mpdf\\' => array($vendorDir . '/mpdf/mpdf/src'),
     'Monolog\\' => array($vendorDir . '/monolog/monolog/src/Monolog'),
     'Mockery\\' => array($vendorDir . '/mockery/mockery/library/Mockery'),
     'League\\Uri\\' => array($vendorDir . '/league/uri', $vendorDir . '/league/uri-interfaces'),
@@ -73,6 +77,7 @@ return array(
     'Laravel\\Prompts\\' => array($vendorDir . '/laravel/prompts/src'),
     'Laravel\\Pail\\' => array($vendorDir . '/laravel/pail/src'),
     'Laravel\\Breeze\\' => array($vendorDir . '/laravel/breeze/src'),
+    'Knp\\Snappy\\' => array($vendorDir . '/knplabs/knp-snappy/src/Knp/Snappy'),
     'Illuminate\\Support\\' => array($vendorDir . '/laravel/framework/src/Illuminate/Macroable', $vendorDir . '/laravel/framework/src/Illuminate/Collections', $vendorDir . '/laravel/framework/src/Illuminate/Conditionable'),
     'Illuminate\\' => array($vendorDir . '/laravel/framework/src/Illuminate'),
     'GuzzleHttp\\UriTemplate\\' => array($vendorDir . '/guzzlehttp/uri-template/src'),
@@ -94,5 +99,6 @@ return array(
     'Carbon\\Doctrine\\' => array($vendorDir . '/carbonphp/carbon-doctrine-types/src/Carbon/Doctrine'),
     'Carbon\\' => array($vendorDir . '/nesbot/carbon/src/Carbon'),
     'Brick\\Math\\' => array($vendorDir . '/brick/math/src'),
+    'Barryvdh\\Snappy\\' => array($vendorDir . '/barryvdh/laravel-snappy/src'),
     'App\\' => array($baseDir . '/app', $vendorDir . '/laravel/pint/app'),
 );

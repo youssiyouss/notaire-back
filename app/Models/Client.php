@@ -23,4 +23,9 @@ class Client extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function contracts()
+    {
+        return $this->belongsToMany(Contract::class, 'contract_client'); // Specify the correct pivot table name
+    }
+
 }

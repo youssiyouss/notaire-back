@@ -3,13 +3,17 @@
 namespace App\Http\Controllers\dashboard;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use RealRashid\SweetAlert\Facades\Alert;
-use Illuminate\Support\Facades\Log;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
+use App\Models\ContractAttributes;
+use App\Models\Client;
 use App\Models\User;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\ContractClient;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 class ContractController extends Controller
 {
@@ -19,7 +23,7 @@ class ContractController extends Controller
     public function index()
     {
         try {
-            $contracts = Contract::with('sub_categories')->get();
+            $contracts = Contract::all();
 
             return response()->json([
                 'contracts' => $contracts,
@@ -55,42 +59,158 @@ class ContractController extends Controller
 
     }
 
+    public function getClientDetails($userId)
+    {
+        try {
+            $user = User::with('client')->findOrFail($userId);
+
+            // Merge client data directly into user object
+            $userData = $user->toArray();
+            if ($user->client) {
+                $userData['client'] = $user->client->toArray();
+            }
+
+            return response()->json($userData);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching client details: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function generateContract($templateId, $clientIds, $buyerIds, Request $request)
+    public function store(Request $request)
     {
-        $template = ContractTemplate::findOrFail($templateId);
-        $clients = Client::whereIn('id', $clientIds)->get();
-        $buyers = Client::whereIn('id', $buyerIds)->get(); // Assuming buyers are also in the Client model
+        // Retrieve the template and clients
+        $template = ContractTemplate::find($request->contractType);
+        $clients = User::whereIn('id', array_column($request->clients, 'id'))->get();
+        $buyers = User::whereIn('id', array_column($request->buyers, 'id'))->get();
 
-        // Determine transformation for Part A (Clients)
-        $clientPronoun = $this->determinePronounCategory($clients, $template->pronoun_transformations);
+        // Create a new contract
+        $contract = new Contract();
+        $contract->template_id = $template->id;
+        $contract->content = $this->generateContractContent($template, $clients, $request->attributes);
+        $contract->created_by = Auth::id();
+        $contract->save();
 
-        // Determine transformation for Part B (Buyers)
-        $buyerPronoun = $this->determinePronounCategory($buyers, $template->pronoun_transformations);
+         // Store contract attributes
+        if ($request->attributes) {
+            foreach ($request->attributes as $attributeData) {
+                $attribute = new ContractAttributes();
+                $attribute->contract_id = $contract->id;
+                $attribute->name = $attributeData['name'];
+                $attribute->value = $attributeData['value'];
+                $attribute->save();
+            }
+        }
 
-        // Replace attribute placeholders
-        $contractContent = $this->replaceAttributes($template->content, $request->attributeValues);
+        // Attach clients to the contract
+        foreach ($clients as $client) {
+            $c = new ContractClient();
+            $c->client_state =  $request->clientType;
+            $c->contract_id = $contract->id;
+            $c->client_id = $client->id;
+            $c->save();
+        }
+        foreach ($buyers as $client) {
+            $c = new ContractClient();
+            $c->client_state =  $request->buyerType;
+            $c->contract_id = $contract->id;
+            $c->client_id = $client->id;
+            $c->save();
+        }
+        $style = <<<'HTML'
+            <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+            <style>
+                body {
+                    font-family: 'Arial Unicode MS', 'Traditional Arabic', 'Times New Roman', sans-serif;
+                    direction: rtl;
+                    text-align: right;
+                }
+            </style>
+            HTML;
 
-        // Replace pronoun placeholders for Clients (Part A)
-        $contractContent = $this->replacePronouns($contractContent, 'A', $clientPronoun);
+            $fullHtml = '<html dir="rtl" lang="ar"><head>' . $style . '</head><body>' . $contract->content . '</body></html>';
 
-        // Replace pronoun placeholders for Buyers (Part B)
-        $contractContent = $this->replacePronouns($contractContent, 'B', $buyerPronoun);
+            // Generate PDF with wkhtmltopdf
+            $pdf = PDF::loadHTML($fullHtml)
+                ->setOption('encoding', 'utf-8')
+                ->setOption('disable-smart-shrinking', true)
+                ->setOption('margin-top', 10)
+                ->setOption('margin-bottom', 10)
+                ->setOption('margin-left', 10)
+                ->setOption('margin-right', 10)
+                ->setOption('no-outline', true)
+                ->setOption('enable-local-file-access', true); // Important for local fonts
 
-        // Save the contract
-        $contract = Contract::create([
-            'client_id' => json_encode($clientIds), // Store as JSON since multiple clients
-            'template_id' => $template->id,
-            'content' => $contractContent,
-            'created_by' => auth()->id(),
-        ]);
+            $pdfContent = $pdf->output();
+            $fileName = 'contracts/contract_' . $contract->id . '_' . time() . '.pdf';
 
-        // Generate PDF and return
-        return $this->generatePdf($contractContent);
+            Storage::disk('public')->makeDirectory('contracts');
+            Storage::disk('public')->put($fileName, $pdfContent);
+
+            $contract->pdf_path = $fileName;
+            $contract->save();
+
+            return response()->json([
+                'message' => 'Contract created successfully!',
+                'contract' => $contract,
+                'pdfUrl' => Storage::disk('public')->url($fileName) // Add this line
+            ], 201);
+
+        }
+
+
+    /**
+     * Generate the contract content by replacing attributes and transformations.
+     */
+    private function generateContractContent($template, $clients, $attributes)
+    {
+        $content = $template->content;
+
+        // Replace attributes in content
+        foreach ($attributes as $attributeData) {
+            $content = str_replace('[' . $attributeData['name'] . ']', $attributeData['value'], $content);
+        }
+
+        // Replace transformations based on clients' sex and number
+        $content = $this->replacePronounTransformations($content, $clients);
+
+        return $content;
     }
+
+    /**
+     * Replace pronoun transformations in the contract template content.
+     */
+    private function replacePronounTransformations($content, $clients)
+    {
+        // Assuming we need to check if there is at least one female in the group
+        $isFemalePresent = $clients->contains(function ($client) {
+            return $client->sexe == 'female';
+        });
+
+        // Determine the transformation based on gender and number
+        $transformation = $isFemalePresent ? 'femalepluralForm' : 'malepluralForm'; // For now we assume plural forms as an example
+
+        // Replace pronoun placeholders with the corresponding transformations
+        $content = str_replace('{{transformation}}', $transformation, $content);
+
+        return $content;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
 
     /**
      * Determines the correct pronoun transformation based on clients' gender.
@@ -113,35 +233,6 @@ class ContractController extends Controller
         }
     }
 
-    /**
-     * Replaces attributes placeholders in the contract content.
-     */
-    private function replaceAttributes($content, $clients)
-    {
-        foreach ($clients as $client) {
-            foreach ($client->attributes as $attribute) {
-                $content = str_replace("[" . $attribute->name . "]", $attribute->value, $content);
-            }
-        }
-        return $content;
-    }
-
-    /**
-     * Replaces pronoun placeholders for a given party (A or B).
-     */
-    private function replacePronouns($content, $party, $pronounValue)
-    {
-        return str_replace("{{$party}_pronoun}", $pronounValue, $content);
-    }
-
-    /**
-     * Generates a PDF from the final contract content.
-     */
-    private function generatePdf($content)
-    {
-        $pdf = \PDF::loadHTML($content);
-        return $pdf->download('contract.pdf');
-    }
 
 
     /**

@@ -17,7 +17,7 @@ class ContractTypeController extends Controller
      */
     public function index()
     {
-        $contractTypes = ContractType::all();
+        $contractTypes = ContractType::with('contractTemplates')->get();
         return response()->json($contractTypes);
     }
 

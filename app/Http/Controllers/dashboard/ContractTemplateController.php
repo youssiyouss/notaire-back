@@ -14,27 +14,49 @@ use Illuminate\Support\Facades\Auth;
 class ContractTemplateController extends Controller
 {
 
-
-     public function store(Request $request)
+   public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'category_id' => 'required|exists:contract_types,id',
             'subcategory_name' => 'required|string|max:255',
-            'attributes' => 'required',
-            'transformations' => 'required',
+            'attributes' => 'required|array',
+            'transformations' => 'required|array',
             'content' => 'required|string',
         ]);
 
-        // Store the new contract template
         $template = ContractTemplate::create([
-            'contract_type_id' => $request->category_id, //$request->category_name,
-            'contract_subtype' => $request->subcategory_name,
-            'attributes' => json_encode((array) $request->attributes),
-            'pronoun_transformations' => json_encode($request->transformations),
-            'content' => $request->content,
-            'created_by' =>  auth()->id()
+            'contract_type_id' => $validated['category_id'],
+            'contract_subtype' => $validated['subcategory_name'],
+            'attributes' => json_encode($validated['attributes']), // Now receives simple array
+            'pronoun_transformations' => json_encode($validated['transformations']),
+            'content' => $validated['content'],
+            'created_by' => auth()->id(),
         ]);
 
-        return response()->json(['message' => 'Contract Template created successfully', 'data' => $template], 201);
+        return response()->json([
+            'message' => 'Contract Template created successfully',
+            'data' => $template,
+        ], 201);
+    }
+
+    public function getAttributes(string $id)
+    {
+        try {
+            $contractTemplate = ContractTemplate::findOrFail($id);
+
+            // Decode the attributes if they're stored as JSON
+            $attributes = json_decode($contractTemplate->attributes, true) ?? [];
+            return response()->json([
+                'success' => true,
+                'attributes' => $attributes // Access the parameters array directly
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Fetching error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 422);
+        }
     }
 }

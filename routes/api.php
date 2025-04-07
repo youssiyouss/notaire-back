@@ -56,6 +56,16 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/get_users', [ContractController::class, 'search_users']);
 
     Route::resource('contract_templates', ContractTemplateController::class);
+    Route::get('contract_templates/{id}/attributes', [ContractTemplateController::class, 'getAttributes']);
+    Route::get('/users/{user}/client-details', [ContractController::class, 'getClientDetails']);
+
+    Route::get('contracts/{contract}', function ($contractId) {
+    $contract = Contract::findOrFail($contractId);
+    $path = storage_path('app/public/contracts/' . $contractId . '.pdf');
+
+    return response()->file($path);
+});
+
 
 });
 

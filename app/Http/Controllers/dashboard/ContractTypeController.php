@@ -35,9 +35,9 @@ class ContractTypeController extends Controller
     public function store(Request $request)
     {
         try{
-
+            Log::info($request);
             $validator = Validator::make($request->all(), [
-                'type_contrat' => 'required|string|max:255|unique:contract_types,name',
+                'name' => 'required|string|max:255|unique:contract_types,name',
             ]);
 
             if ($validator->fails()) {
@@ -45,7 +45,7 @@ class ContractTypeController extends Controller
             }
 
             $contractType = ContractType::create([
-                'name' => $request->type_contrat,
+                'name' => $request->name,
                 'created_by' =>  auth()->id()
             ]);
 

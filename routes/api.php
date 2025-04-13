@@ -19,6 +19,10 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });*/
 
+Route::get('/test-cors', function() {
+    return response()->json(['message' => 'CORS working!']);
+});
+
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('sendResetPasswordLink', [AuthController::class, 'sendResetPasswordLink']);

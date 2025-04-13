@@ -10,7 +10,6 @@ use App\Http\Controllers\dashboard\ContractTypeController;
 use App\Http\Controllers\dashboard\ContractController;
 use App\Http\Controllers\dashboard\ContractAttributesController;
 use App\Http\Controllers\dashboard\ContractTemplateController;
-use Illuminate\Support\Facades\Log;
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -21,7 +20,7 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });*/
 
 Route::get('/test-cors', function() {
-   Log::info("cc");
+    return response()->json(['message' => 'CORS working!']);
 });
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -35,7 +34,7 @@ Route::post('/verification/resend/', [AuthController::class, 'resendVerification
 Route::post('/change-password', [AuthController::class, 'changePassword']);
 
 
-Route::middleware(['cors', 'auth:api'])->group(function () {
+Route::middleware('auth:api')->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('clients', ClientController::class);
     //Route::post('/process_image', [ClientController::class, 'process_image']);

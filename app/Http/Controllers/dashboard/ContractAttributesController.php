@@ -1,9 +1,10 @@
 <?php
 
 namespace App\Http\Controllers\dashboard;
+use App\Http\Controllers\Controller;
+
 use App\Models\ContractAttributes;
 use Illuminate\Http\Request;
-
 class ContractAttributesController extends Controller
 {
  public function store(Request $request) {

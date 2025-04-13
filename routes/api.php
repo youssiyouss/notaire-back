@@ -10,6 +10,7 @@ use App\Http\Controllers\dashboard\ContractTypeController;
 use App\Http\Controllers\dashboard\ContractController;
 use App\Http\Controllers\dashboard\ContractAttributesController;
 use App\Http\Controllers\dashboard\ContractTemplateController;
+use Illuminate\Support\Facades\Log;
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -20,7 +21,7 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });*/
 
 Route::get('/test-cors', function() {
-    return response()->json(['message' => 'CORS working!']);
+   Log::info("cc");
 });
 
 Route::post('/login', [AuthController::class, 'login']);

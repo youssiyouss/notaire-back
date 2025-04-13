@@ -19,7 +19,7 @@ class UserSeeder extends Seeder
                 [
                     'nom' => 'Admin',
                     'prenom' => 'Général',
-                    'email' => 'yousseramcf@gmail.com',
+                    'email' => 'notaireainseba@gmail.com',
                     'tel' => '123456789',
                     'role' => 'Admin',
                     'sexe' => 'male',

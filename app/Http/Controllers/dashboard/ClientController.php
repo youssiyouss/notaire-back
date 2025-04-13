@@ -104,7 +104,7 @@ class ClientController extends Controller
                 'emploi' => $request->emploi,
             ]);
 
-            $document_update = User_Document::findOrFail($request->selectedDocumentId);
+            $document_update = User_Document::find($request->selectedDocumentId);
 
             if (!$document_update) {
                 Log::error("No document found for user_id {$user->id} and document_type {$request->document_type}");

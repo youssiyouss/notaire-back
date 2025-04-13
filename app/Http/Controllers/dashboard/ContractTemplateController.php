@@ -42,7 +42,8 @@ class ContractTemplateController extends Controller
             'category_id' => 'required|exists:contract_types,id',
             'subcategory_name' => 'required|string|max:255',
             'attributes' => 'required|array',
-            'transformations' => 'required|array',
+            'part_a_transformations' => 'required|array', // Will receive JSON string
+            'part_b_transformations' => 'required|array', // Will receive JSON string
             'content' => 'required|string',
         ]);
 
@@ -50,7 +51,9 @@ class ContractTemplateController extends Controller
             'contract_type_id' => $validated['category_id'],
             'contract_subtype' => $validated['subcategory_name'],
             'attributes' => json_encode($validated['attributes']), // Now receives simple array
-            'pronoun_transformations' => json_encode($validated['transformations']),
+            'part_a_transformations' => json_encode($validated['part_a_transformations']),
+            'part_b_transformations' => json_encode($validated['part_b_transformations']),
+            'part_all_transformations' => json_encode($validated['part_all_transformations']),
             'content' => $validated['content'],
             'created_by' => auth()->id(),
         ]);
@@ -67,7 +70,9 @@ class ContractTemplateController extends Controller
             'contract_type_id' => 'required|exists:contract_types,id',
             'contract_subtype' => 'required|string|max:255',
             'attributes' => 'required|string', // Will receive JSON string
-            'pronoun_transformations' => 'required|string', // Will receive JSON string
+            'part_a_transformations' => 'required|string', // Will receive JSON string
+            'part_b_transformations' => 'required|string', // Will receive JSON string
+            'part_all_transformations' => 'required|string', // Will receive JSON string
             'content' => 'required|string',
         ]);
 
@@ -79,7 +84,9 @@ class ContractTemplateController extends Controller
             'contract_type_id' => $validated['contract_type_id'],
             'contract_subtype' => $validated['contract_subtype'],
             'attributes' => $validated['attributes'], // Already JSON string from frontend
-            'pronoun_transformations' => $validated['pronoun_transformations'], // Already JSON string
+            'part_a_transformations' => $validated['part_a_transformations'], // Already JSON string
+            'part_b_transformations' => $validated['part_b_transformations'], // Already JSON string
+            'part_all_transformations' => $validated['part_all_transformations'], // Already JSON string
             'content' => $validated['content'],
             'updated_by' => auth()->id(),
         ]);

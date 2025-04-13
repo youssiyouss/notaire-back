@@ -83,6 +83,7 @@ class ContractController extends Controller
      */
     public function store(Request $request)
     {
+       // Log::info($request->all());
         // Retrieve the template and clients
         $template = ContractTemplate::find($request->contractType);
         $clients = User::whereIn('id', array_column($request->clients, 'id'))->get();
@@ -91,7 +92,13 @@ class ContractController extends Controller
         // Create a new contract
         $contract = new Contract();
         $contract->template_id = $template->id;
-        $contract->content = $this->generateContractContent($template, $clients, $request->attributes);
+        $contract->content = $this->generateContractContent(
+            $template,
+            $clients,
+            $request['attributes'],
+            $buyers,
+            $request->notaryOffice
+        );
         $contract->created_by = Auth::id();
         $contract->save();
 
@@ -163,76 +170,159 @@ class ContractController extends Controller
         }
 
 
-    /**
-     * Generate the contract content by replacing attributes and transformations.
-     */
-    private function generateContractContent($template, $clients, $attributes)
+    protected function generateContractContent($template, $clients, $attributes, $buyers, $notaryOfficeId)
     {
         $content = $template->content;
 
-        // Replace attributes in content
-        foreach ($attributes as $attributeData) {
-            $content = str_replace('[' . $attributeData['name'] . ']', $attributeData['value'], $content);
-        }
+        // 1. First replace notary office (simplest replacement)
+        $content = $this->replaceNotaryOffice($content, $notaryOfficeId);
 
-        // Replace transformations based on clients' sex and number
-        $content = $this->replacePronounTransformations($content, $clients);
+        // 2. Replace attributes between []
+        $content = $this->replaceAttributes($content, $attributes);
+
+        // 3. Then handle transformations (most complex)
+        $content = $this->replacePronounTransformationsA(
+            $content,
+            json_decode($template->part_a_transformations, true),
+            $clients
+        );
+
+        $content = $this->replacePronounTransformationsB(
+            $content,
+            json_decode($template->part_b_transformations, true),
+            $buyers
+        );
+
+        $content = $this->replacePronounTransformations(
+            $content,
+            json_decode($template->part_all_transformations, true),
+            $clients,
+            $buyers
+        );
 
         return $content;
     }
+        protected function replaceAttributes($content, $attributes)
+        {
+            foreach ($attributes as $attribute) {
+                $placeholder = '[' . $attribute['name'] . ']';
+                $content = str_ireplace($placeholder, $attribute['value'], $content);
+            }
+            return $content;
+        }
 
-    /**
-     * Replace pronoun transformations in the contract template content.
-     */
-    private function replacePronounTransformations($content, $clients)
+        protected function replacePronounTransformationsA($content, $transformations, $clients)
+        {
+            foreach ($transformations as $transformation) {
+                $placeholder = '%!' . $transformation['placeholder'] . '!%';
+
+                // Determine which form to use based on clients/buyers
+                $form = $this->determinePronounForm($transformation, $clients);
+
+                $content = str_replace($placeholder, $form, $content);
+            }
+            return $content;
+        }
+
+        protected function replacePronounTransformationsB($content, $transformations,$buyers)
+        {
+            foreach ($transformations as $transformation) {
+                $placeholder = '%!!' . $transformation['placeholder'] . '!!%';
+
+                // Determine which form to use based on clients/buyers
+                $form = $this->determinePronounForm($transformation, $buyers);
+
+                $content = str_replace($placeholder, $form, $content);
+            }
+            return $content;
+        }
+
+        protected function replacePronounTransformations($content, $transformations, $clients, $buyers)
+        {
+            foreach ($transformations as $transformation) {
+                $placeholder = '%' . $transformation['placeholder'] . '%';
+
+                // Determine which form to use based on clients/buyers
+                $form = $this->determinePronounFormAll($transformation, $clients, $buyers);
+
+                $content = str_replace($placeholder, $form, $content);
+            }
+            return $content;
+        }
+
+        protected function determinePronounForm($transformation, $users)
+        {
+            $maleCount = 0;
+            $femaleCount = 0;
+
+            foreach ($users as $user) {
+                // Make case-insensitive comparison
+                if (strtolower($user->sexe) === 'male') {
+                    $maleCount++;
+                } else {
+                    $femaleCount++;
+                }
+            }
+
+            // Add debug logging
+            \Log::info("Gender counts", [
+                'male' => $maleCount,
+                'female' => $femaleCount,
+                'placeholder' => $transformation['placeholder']
+            ]);
+
+            if ($maleCount > 0 && $femaleCount === 0) {
+                return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
+            } elseif ($femaleCount > 0 && $maleCount === 0) {
+                return $femaleCount > 1 ? $transformation['femalepluralForm'] : $transformation['femaleForm'];
+            } else {
+                return $transformation['malepluralForm'];
+            }
+        }
+
+        protected function determinePronounFormAll($transformation, $clients, $buyers)
+        {
+            // Count genders among all parties
+            $maleCount = 0;
+            $femaleCount = 0;
+
+            foreach ($clients as $client) {
+                $client->sexe === 'male' ? $maleCount++ : $femaleCount++;
+            }
+
+            foreach ($buyers as $buyer) {
+                $buyer->sexe === 'male' ? $maleCount++ : $femaleCount++;
+            }
+
+            // Determine which form to use based on Arabic grammar rules
+            if ($maleCount > 0 && $femaleCount === 0) {
+                // All male
+                return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
+            } elseif ($femaleCount > 0 && $maleCount === 0) {
+                // All female
+                return $femaleCount > 1 ? $transformation['femalepluralForm'] : $transformation['femaleForm'];
+            } else {
+                // Mixed group - in Arabic, masculine plural is used for mixed groups
+                return $transformation['malepluralForm'];
+            }
+        }
+
+    protected function replaceNotaryOffice($content, $notaryOfficeId)
     {
-        // Assuming we need to check if there is at least one female in the group
-        $isFemalePresent = $clients->contains(function ($client) {
-            return $client->sexe == 'female';
-        });
-
-        // Determine the transformation based on gender and number
-        $transformation = $isFemalePresent ? 'femalepluralForm' : 'malepluralForm'; // For now we assume plural forms as an example
-
-        // Replace pronoun placeholders with the corresponding transformations
-        $content = str_replace('{{transformation}}', $transformation, $content);
-
+        $notary = User::find($notaryOfficeId);
+        Log::info($notary);
+        Log::info($content);
+        if ($notary) {
+            $notaryName = $notary->nom . ' ' . $notary->prenom;
+            // Replace both Arabic and French placeholders
+            $content = str_replace(
+                ['@موثق@', '@notaire@'],
+                [$notaryName, $notaryName],
+                $content
+            );
+        }
         return $content;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-    /**
-     * Determines the correct pronoun transformation based on clients' gender.
-     */
-    private function determinePronounCategory($clients, $transformations)
-    {
-        if ($clients->count() === 1) {
-            return $clients->first()->sex === 'male' ? $transformations['maleForm'] : $transformations['femaleForm'];
-        }
-
-        $hasMale = $clients->contains(fn($c) => $c->sex === 'male');
-        $hasFemale = $clients->contains(fn($c) => $c->sex === 'female');
-
-        if ($hasMale && !$hasFemale) {
-            return $transformations['malepluralForm'];
-        } elseif (!$hasMale && $hasFemale) {
-            return $transformations['femalepluralForm'];
-        } else {
-            return $transformations['malepluralForm']; // Arabic grammar rule: masculine takes precedence
-        }
-    }
-
 
 
     /**

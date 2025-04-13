@@ -49,7 +49,6 @@ Route::middleware('auth:api')->group(function () {
     });
 
     Route::get('/notaires', [UserController::class, 'getNotaryOffices']);
-    Route::get('/clients', [ContractController::class, 'searchClients']);
     Route::get('/buyers', [ContractController::class, 'searchBuyers']);
     Route::get('/get_users', [ContractController::class, 'search_users']);
 

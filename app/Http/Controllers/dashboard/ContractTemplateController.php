@@ -44,6 +44,7 @@ class ContractTemplateController extends Controller
             'attributes' => 'required|array',
             'part_a_transformations' => 'required|array', // Will receive JSON string
             'part_b_transformations' => 'required|array', // Will receive JSON string
+            'part_all_transformations' => 'required|array', // Will receive JSON string
             'content' => 'required|string',
         ]);
 

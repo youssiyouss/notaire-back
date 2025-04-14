@@ -17,7 +17,7 @@ return new class extends Migration
             $table->longText('content'); // Final contract content with replaced values (allows large content)
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->foreignId('updated_by')->nullable()->constrained('users')->onDelete('set null');
-            $table->string('pdf_path');
+            $table->string('pdf_path')->nullable();
             $table->timestamps();
         });
     }

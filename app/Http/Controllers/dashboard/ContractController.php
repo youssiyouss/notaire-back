@@ -139,7 +139,7 @@ class ContractController extends Controller
             </style>
             HTML;
 
-            $fullHtml = '<html dir="rtl" lang="ar"><head>' . $style . '</head><body>' . $contract->content . '</body></html>';
+            $fullHtml = '<html lang="ar" dir="rtl"><head>' . $style . ' <meta charset="UTF-8"> </head><body>' . $contract->content . '</body></html>';
 
             // Generate PDF with wkhtmltopdf
             $pdf = PDF::loadHTML($fullHtml)

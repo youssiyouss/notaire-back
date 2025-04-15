@@ -62,7 +62,7 @@ class ClientDocumentController extends Controller
         // Sauvegarde des fichiers
         if ($request->hasFile('document_image')) {
             $fieName = $request->document_type . '.' . time() . '.' . $request->file('document_image')->getClientOriginalExtension();
-            $path = $request->file('document_image')->storeAs('user_documents/'.$doc->user_id.'/', $fieName, 'public');
+            $path = $request->file('document_image')->storeAs('user_documents/'.$doc->user_id, $fieName, 'public');
 
             // Check if the file is saved
             if (Storage::disk('public')->exists('user_documents/'.$doc->user_id.'/' . $fieName)) {

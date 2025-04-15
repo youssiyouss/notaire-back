@@ -76,7 +76,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function documents()
     {
-        return $this->hasMany(User_Document::class, 'user_id');
+        return $this->hasMany(ClientDocument::class, 'user_id');
     }
 
     public function creator()

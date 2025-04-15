@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class User_Document extends Model
+class ClientDocument extends Model
 {
     protected $table = 'user_documents';
 
@@ -18,6 +18,10 @@ class User_Document extends Model
         'updated_by',
         'created_by',
     ];
+
+    public function owner(){
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
     public function creator()
     {

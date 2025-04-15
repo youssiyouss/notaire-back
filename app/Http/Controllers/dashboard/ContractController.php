@@ -167,7 +167,9 @@ class ContractController extends Controller
                 'pdfUrl' => Storage::disk('public')->url($fileName) // Add this line
             ], 201);
 
-        }
+    }
+
+
 
 
     protected function generateContractContent($template, $clients, $attributes, $buyers, $notaryOfficeId)

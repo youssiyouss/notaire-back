@@ -10,6 +10,7 @@ use App\Http\Controllers\dashboard\ContractTypeController;
 use App\Http\Controllers\dashboard\ContractController;
 use App\Http\Controllers\dashboard\ContractAttributesController;
 use App\Http\Controllers\dashboard\ContractTemplateController;
+use App\Http\Controllers\dashboard\ClientDocumentController;
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -37,6 +38,8 @@ Route::post('/change-password', [AuthController::class, 'changePassword']);
 Route::middleware('auth:api')->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('clients', ClientController::class);
+    Route::resource('user-documents',ClientDocumentController::class);
+
     //Route::post('/process_image', [ClientController::class, 'process_image']);
     Route::post('/extract_text', [ClientController::class, 'extractText']);
     Route::resource('contracts_type', ContractTypeController::class);
@@ -61,12 +64,10 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/users/{user}/client-details', [ContractController::class, 'getClientDetails']);
 
     Route::get('contracts/{contract}', function ($contractId) {
-    $contract = Contract::findOrFail($contractId);
-    $path = storage_path('app/public/contracts/' . $contractId . '.pdf');
-
-    return response()->file($path);
-});
-
+        $contract = Contract::findOrFail($contractId);
+        $path = storage_path('app/public/contracts/' . $contractId . '.pdf');
+        return response()->file($path);
+    });
 
 });
 

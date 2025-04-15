@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('user_documents', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->string('image');
+            $table->string('image')->nullable();
             $table->string('document_type');
             $table->string('id_document')->nullable();
             $table->string('date_emission_document')->nullable();

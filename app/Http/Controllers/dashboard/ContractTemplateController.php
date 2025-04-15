@@ -17,7 +17,6 @@ class ContractTemplateController extends Controller
 
     public function index()
     {
-
             $templates = ContractTemplate::with('contractType')->get();
             return response()->json([
                 'success' => true,

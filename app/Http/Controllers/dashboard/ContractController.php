@@ -62,7 +62,7 @@ class ContractController extends Controller
     public function getClientDetails($userId)
     {
         try {
-            $user = User::with('client')->findOrFail($userId);
+            $user = User::with('client','documents')->findOrFail($userId);
 
             // Merge client data directly into user object
             $userData = $user->toArray();

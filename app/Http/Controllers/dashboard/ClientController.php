@@ -132,7 +132,7 @@ class ClientController extends Controller
     public function show(string $id)
     {
         try {
-            $user = Client::with('parent.creator')->findOrFail($id);
+            $user = Client::with(['parent.documents', 'parent.creator'])->findOrFail($id);
             return response()->json(['user' => $user], 200);
             } catch (\Throwable $th) {
                 return response()->json(['error' => 'User not found.'], 404);

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Thiagoalessio\TesseractOCR\TesseractOCR;
 use App\Models\Client;
 use App\Models\User;
-use App\Models\User_Document;
+use App\Models\ClientDocument;
 use Error;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +42,19 @@ class ClientController extends Controller
         }
     }
 
+    public function edit($id)
+    {
+        try {
+            $client = Client::findOrFail($id)->with('parent','parent.creator');
+
+            return response()->json($client, 200);
+
+        } catch (\Exception $e) {
+            Log::error('Fetching error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
     /**
      * Store a newly created resource in storage.
      */
@@ -53,26 +66,19 @@ class ClientController extends Controller
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'tel' => 'required|string|max:20',
+            'tel' => 'required|string|max:20|unique:users,tel',
             'adresse' => 'nullable|string|max:255',
             'password' => 'required|string|min:8',
             'sexe' => 'required|in:male,female',
             'date_de_naissance' => 'required|date',
             'role' => 'required|string',
-            'ccp' => 'nullable|string',
-            'salaire' => 'nullable|numeric',
-            'date_virement_salaire' => 'nullable|date',
             'nationalite' => 'required|string|max:100',
             'lieu_de_naissance' => 'required|string|max:255',
             'nom_maternelle' => 'required|string|max:255',
             'prenom_mere' => 'required|string|max:255',
             'prenom_pere' => 'required|string|max:255',
             'emploi' => 'nullable|string|max:255',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'document_type' => 'required|string|max:255',
-            'id_document' => 'required|string|max:255',
-            'date_emission_document' => 'required|date',
-            'lieu_emission_document' => 'required|string|max:255',
+            'picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -104,16 +110,15 @@ class ClientController extends Controller
                 'emploi' => $request->emploi,
             ]);
 
-            $document_update = User_Document::find($request->selectedDocumentId);
-
-            if (!$document_update) {
-                Log::error("No document found for user_id {$user->id} and document_type {$request->document_type}");
-            }else{
-                $document_update->user_id = $user->id;
-                $document_update->id_document = $request->id_document;
-                $document_update->date_emission_document= $request->date_emission_document;
-                $document_update->lieu_emission_document= $request->lieu_emission_document;
-                $document_update->save();
+             if ($request->hasFile('picture')) {
+                $picName = $request->nom . '.' . time() . '.' . $request->file('picture')->getClientOriginalExtension();
+                $path = $request->file('picture')->storeAs('avatars', $picName, 'public');
+                if (Storage::disk('public')->exists('avatars/' . $picName)) {
+                    $user->picture = $path;
+                    $user->save();
+                } else {
+                    return response()->json(['message' => 'File could not be saved'], 500);
+                }
             }
 
             DB::commit();
@@ -134,9 +139,9 @@ class ClientController extends Controller
         try {
             $user = Client::with(['parent.documents', 'parent.creator'])->findOrFail($id);
             return response()->json(['user' => $user], 200);
-            } catch (\Throwable $th) {
-                return response()->json(['error' => 'User not found.'], 404);
-            }
+        } catch (\Throwable $th) {
+            return response()->json(['error' => 'User not found.'], 404);
+        }
     }
 
     /**
@@ -144,22 +149,40 @@ class ClientController extends Controller
      */
     public function update(Request $request, string $id)
     {
+        Log::info($request->all());
         // Validate the profile data
-        $request->validate([
-            'nationalite' => 'nullable|string|max:100',
-            'lieu_de_naissance' => 'nullable|string|max:255',
-            'nom_maternelle' => 'nullable|string|max:255',
-            'prenom_mere' => 'nullable|string|max:255',
-            'prenom_pere' => 'nullable|string|max:255',
-            'numero_acte_naissance' => 'nullable|string|max:255',
-            'type_carte' => 'nullable|string|max:255',
-            'date_emission_carte' => 'nullable|string|max:255',
-            'lieu_emission_carte' => 'nullable|string|max:255',
+        $validator = Validator::make($request->all(), [
+            'nom' => 'required|string|max:255',
+            'prenom' => 'required|string|max:255',
+            'email' => 'nullable|string|email|max:255|unique:users,email,' . $id,
+            'tel' => 'nullable|regex:/^\+?[0-9]\d{0,14}$/|max:20|unique:users,tel,' . $id,
+            'adresse' => 'nullable|string|max:255',
+            'sexe' => 'required|in:male,female',
+            'date_de_naissance' => 'required|date',
+            'role' => 'required|string',
+            'nationalite' => 'required|string|max:100',
+            'lieu_de_naissance' => 'required|string|max:255',
+            'nom_maternelle' => 'required|string|max:255',
+            'prenom_mere' => 'required|string|max:255',
+            'prenom_pere' => 'required|string|max:255',
             'emploi' => 'nullable|string|max:255',
+            'picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         // Get the authenticated user's client profile
-        $client = $request->user()->client;
+        $user = User::findOrFail($id);
+        $client = $user->client;
+
+        $user->update([
+            'nom' => $request->nom,
+            'prenom' => $request->prenom,
+            'email' => $request->email,
+            'tel' => $request->tel,
+            'adresse' => $request->adresse,
+            'sexe' => $request->sexe,
+            'date_de_naissance' => $request->date_de_naissance,
+            'updated_by' => auth()->id()
+        ]);
 
         // Update the client profile with additional information
         $client->update([
@@ -168,12 +191,20 @@ class ClientController extends Controller
             'nom_maternelle' => $request->nom_maternelle,
             'prenom_mere' => $request->prenom_mere,
             'prenom_pere' => $request->prenom_pere,
-            'numero_acte_naissance' => $request->numero_acte_naissance,
-            'type_carte' => $request->type_carte,
-            'date_emission_carte' => $request->date_emission_carte,
-            'lieu_emission_carte' => $request->lieu_emission_carte,
             'emploi' => $request->emploi,
         ]);
+
+        if ($request->hasFile('picture')) {
+            // Vérifier si l'utilisateur a déjà une photo et la supprimer
+            if (!empty($user->picture) && Storage::disk('public')->exists($user->picture)) {
+                Storage::disk('public')->delete($user->picture);
+            }
+            $image = $request->file('picture');
+            $imageName = $user->nom.'.'.time() . '.' . $image->getClientOriginalExtension();
+            $path = $image->storeAs('avatars', $imageName, 'public');
+                $user->picture = $path;
+                $user->save();
+            }
 
         // Return success response
         return response()->json(['message' => 'Client profile updated successfully'], 200);
@@ -247,7 +278,7 @@ class ClientController extends Controller
         }
 
         // Save document
-        $document = new User_Document();
+        $document = new ClientDocument();
         $document->user_id = auth()->id();
         $document->image = $imagePath;
         $document->document_type = $request->input('document_type');

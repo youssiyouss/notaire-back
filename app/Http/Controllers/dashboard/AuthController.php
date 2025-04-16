@@ -344,8 +344,16 @@ class AuthController extends Controller
     public function changePassword(Request $request)
     {
         try {
-
-            $user = Auth::guard('api')->user();
+            Log::info($request->all());
+            if(!$request->user_id){
+                Log::info('logedin');
+                $user = Auth::guard('api')->user();
+            }
+            else{
+                Log::info('Client');
+                $user = User::findOrFail($request->user_id);
+            }
+            Log::info($user);
 
             if (!Hash::check($request->current_password, $user->password)) {
                 return response()->json(['error' => __('authController.psw_dont_match')], Response::HTTP_UNPROCESSABLE_ENTITY);

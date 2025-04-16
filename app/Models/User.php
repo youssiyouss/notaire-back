@@ -42,7 +42,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'role',
         'ccp',
         'salaire',
-        'date_virement_salaire'
+        'date_virement_salaire',
+        'created_by',
+        'updated_by'
     ];
 
     /**

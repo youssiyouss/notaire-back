@@ -128,25 +128,54 @@ class ContractController extends Controller
             $c->client_id = $client->id;
             $c->save();
         }
-        $style = <<<'HTML'
-            <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-            <style>
-                body {
-                    font-family: 'Arial Unicode MS', 'Traditional Arabic', 'Times New Roman', sans-serif;
-                    direction: rtl;
-                    text-align: right;
-                }
-            </style>
-            HTML;
 
-            $fullHtml = '<html lang="ar" dir="rtl"><head>' . $style . ' <meta charset="UTF-8"> </head><body>' . $contract->content . '</body></html>';
+        $style = <<<'HTML'
+                        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+                        <style>
+
+                            body {
+                                font-family:  'Times New Roman','Arial Unicode MS', 'Traditional Arabic', sans-serif;
+                                direction: rtl;
+                                text-align: right;
+                                font-size: 14px;
+                            }
+
+                            .ql-align-center { text-align: center; }
+                            .ql-align-right { text-align: right; }
+                            .ql-align-left { text-align: left; }
+
+                            .ql-size-small { font-size: 0.75em; }
+                            .ql-size-large { font-size: 1.5em; }
+                            .ql-size-huge  { font-size: 2.5em; }
+                        </style>
+                    HTML;
+
+
+            $fullHtml = <<<HTML
+            <html lang="ar" dir="rtl">
+            <head>
+                $style
+                <meta charset="UTF-8">
+            </head>
+            <body>
+                <div style="display: flex; flex-direction: row-reverse;">
+                    <!-- Contract content area -->
+                    <div class="container" style="padding-right: 7.5cm; padding-bottom: 4cm; border-top: 2cm;">
+                        <div style="border-right: 2px solid black;border-left: 2px solid black; text-align: left;">
+                            $contract->content
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            HTML;
 
             // Generate PDF with wkhtmltopdf
             $pdf = PDF::loadHTML($fullHtml)
                 ->setOption('encoding', 'utf-8')
                 ->setOption('disable-smart-shrinking', true)
                 ->setOption('margin-top', 10)
-                ->setOption('margin-bottom', 10)
+                ->setOption('margin-bottom', 40)
                 ->setOption('margin-left', 10)
                 ->setOption('margin-right', 10)
                 ->setOption('no-outline', true)
@@ -266,13 +295,6 @@ class ContractController extends Controller
                 }
             }
 
-            // Add debug logging
-            \Log::info("Gender counts", [
-                'male' => $maleCount,
-                'female' => $femaleCount,
-                'placeholder' => $transformation['placeholder']
-            ]);
-
             if ($maleCount > 0 && $femaleCount === 0) {
                 return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
             } elseif ($femaleCount > 0 && $maleCount === 0) {
@@ -312,8 +334,6 @@ class ContractController extends Controller
     protected function replaceNotaryOffice($content, $notaryOfficeId)
     {
         $notary = User::find($notaryOfficeId);
-        Log::info($notary);
-        Log::info($content);
         if ($notary) {
             $notaryName = $notary->nom . ' ' . $notary->prenom;
             // Replace both Arabic and French placeholders

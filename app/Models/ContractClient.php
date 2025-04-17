@@ -9,10 +9,14 @@ class ContractClient extends Model
 
     protected $table ="contract_client";
 
-    protected $fillable = ['client_state', 'contract_id', 'client_id'];
+    protected $fillable = ['contract_id', 'client_id'];
 
     public function contract() {
-        return $this->belongsTo(Contract::class);
+        return $this->belongsTo(Contract::class,'contract_id');
+    }
+
+    public function client(){
+        return $this->belongsTo(User::class,'client_id');
     }
 
 }

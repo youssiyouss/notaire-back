@@ -23,7 +23,17 @@ class ContractController extends Controller
     public function index()
     {
         try {
-            $contracts = Contract::all();
+            $contracts = Contract::with([
+                'clients:id,nom,prenom,email',
+                'creator:id,nom,prenom',
+                'editor:id,nom,prenom',
+                'template:id,contract_subtype,taxe_type,taxe_pourcentage,contract_type_id',
+                'template.contractType:id,name' // Si tu veux afficher aussi le nom du type de contrat
+            ])->paginate(20);
+
+            return response()->json([
+                'contracts' => $contracts
+            ], 200);
 
             return response()->json([
                 'contracts' => $contracts,
@@ -116,14 +126,12 @@ class ContractController extends Controller
         // Attach clients to the contract
         foreach ($clients as $client) {
             $c = new ContractClient();
-            $c->client_state =  $request->clientType;
             $c->contract_id = $contract->id;
             $c->client_id = $client->id;
             $c->save();
         }
         foreach ($buyers as $client) {
             $c = new ContractClient();
-            $c->client_state =  $request->buyerType;
             $c->contract_id = $contract->id;
             $c->client_id = $client->id;
             $c->save();
@@ -374,8 +382,20 @@ class ContractController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+     public function destroy(string $id)
     {
-        //
+        try {
+            $Contract = Contract::FindOrFail($id);
+            $Contract->delete();
+
+            return response()->json(['message' => 'Employee deleted successfully'], 201);
+        }catch (\Error $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch(\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
     }
+
 }

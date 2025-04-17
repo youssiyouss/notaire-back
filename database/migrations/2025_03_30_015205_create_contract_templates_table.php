@@ -20,6 +20,8 @@ return new class extends Migration
             $table->json('part_a_transformations');
             $table->json('part_b_transformations');
             $table->json('part_all_transformations');
+            $table->string('taxe_type');
+            $table->number('taxe_pourcentage');
             $table->foreignId('created_by')->nullable();
             $table->foreignId('updated_by')->nullable();
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');

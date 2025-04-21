@@ -37,9 +37,12 @@ class ContractTemplateController extends Controller
 
     public function store(Request $request)
     {
+        Log::info($request->all());
         $validated = $request->validate([
             'category_id' => 'required|exists:contract_types,id',
             'subcategory_name' => 'required|string|max:255',
+            'taxe_pourcentage'=>'required|numeric',
+            'taxe_type'=>'required',
             'attributes' => 'required|array',
             'part_a_transformations' => 'required|array', // Will receive JSON string
             'part_b_transformations' => 'required|array', // Will receive JSON string
@@ -49,6 +52,8 @@ class ContractTemplateController extends Controller
 
         $template = ContractTemplate::create([
             'contract_type_id' => $validated['category_id'],
+            'taxe_type' => $validated['taxe_type'],
+            'taxe_pourcentage' => $validated['taxe_pourcentage'],
             'contract_subtype' => $validated['subcategory_name'],
             'attributes' => json_encode($validated['attributes']), // Now receives simple array
             'part_a_transformations' => json_encode($validated['part_a_transformations']),
@@ -69,6 +74,8 @@ class ContractTemplateController extends Controller
         $validated = $request->validate([
             'contract_type_id' => 'required|exists:contract_types,id',
             'contract_subtype' => 'required|string|max:255',
+            'taxe_pourcentage'=>'required|numeric',
+            'taxe_type'=>'required',
             'attributes' => 'required|string', // Will receive JSON string
             'part_a_transformations' => 'required|string', // Will receive JSON string
             'part_b_transformations' => 'required|string', // Will receive JSON string
@@ -83,6 +90,8 @@ class ContractTemplateController extends Controller
         $template->update([
             'contract_type_id' => $validated['contract_type_id'],
             'contract_subtype' => $validated['contract_subtype'],
+            'taxe_type' => $validated['taxe_type'],
+            'taxe_pourcentage' => $validated['taxe_pourcentage'],
             'attributes' => $validated['attributes'], // Already JSON string from frontend
             'part_a_transformations' => $validated['part_a_transformations'], // Already JSON string
             'part_b_transformations' => $validated['part_b_transformations'], // Already JSON string

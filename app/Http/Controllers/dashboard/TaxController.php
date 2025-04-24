@@ -14,6 +14,7 @@ use PhpOffice\PhpWord\TemplateProcessor;
 
 class TaxController extends Controller
 {
+
     public function store(Request $request)
     {
         $start = Carbon::parse($request->start);
@@ -23,21 +24,26 @@ class TaxController extends Controller
             ->whereBetween('created_at', [$start, $end])
             ->get();
 
-
         if ($contracts->isEmpty()) {
             return response()->json(['message' => 'لا توجد عقود خلال هذه الفترة'], 404);
         }
 
         $templatePath = public_path('templates/tax-template.docx');
-        $outputPath = storage_path('app/reports/tax-report-' . now()->format('YmdHis') . '.docx');
+
+        // Correct output path definition
+        $outputPath = storage_path('app/public/tax_reports/tax_report-' . now()->format('YmdHis') . '.docx');
+
+        // Ensure directory exists
+        $reportsDir = dirname($outputPath);
+        if (!file_exists($reportsDir)) {
+            mkdir($reportsDir, 0755, true);
+        }
 
         $template = new TemplateProcessor($templatePath);
-
         $template->cloneRow('${نوع_العقد}', $contracts->count());
 
         foreach ($contracts as $i => $contract) {
             $row = $i + 1;
-
             $clientsList = $contract->clients->map(function ($client) {
                 return "{$client->nom} {$client->prenom}";
             })->implode('، ');
@@ -57,13 +63,20 @@ class TaxController extends Controller
             }
         }
 
-        // Notaire info (one notaire for all contracts in this case)
         $notaireName = $contracts->first()->notaire->nom . ' ' . $contracts->first()->notaire->prenom;
         $template->setValue("موثق", $notaireName);
-        $template->saveAs($outputPath);
 
-        return response()->download($outputPath)->deleteFileAfterSend(true);
+        try {
+            $template->saveAs($outputPath);
+            return response()->download($outputPath)->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to generate report',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
+
 
     public function generatePreview(Request $request)
     {

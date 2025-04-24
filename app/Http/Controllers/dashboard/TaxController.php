@@ -28,7 +28,7 @@ class TaxController extends Controller
             return response()->json(['message' => 'لا توجد عقود خلال هذه الفترة'], 404);
         }
 
-        $templatePath = storage_path('app/templates/tax-template.docx');
+        $templatePath = public_path('templates/tax-template.docx');
         $outputPath = storage_path('app/reports/tax-report-' . now()->format('YmdHis') . '.docx');
 
         $template = new TemplateProcessor($templatePath);
@@ -60,11 +60,6 @@ class TaxController extends Controller
         // Notaire info (one notaire for all contracts in this case)
         $notaireName = $contracts->first()->notaire->nom . ' ' . $contracts->first()->notaire->prenom;
         $template->setValue("موثق", $notaireName);
-
-        $reportsDir = storage_path('app/reports');
-        if (!file_exists($reportsDir)) {
-            mkdir($reportsDir, 0777, true); // true permet de créer récursivement
-        }
         $template->saveAs($outputPath);
 
         return response()->download($outputPath)->deleteFileAfterSend(true);
@@ -73,7 +68,7 @@ class TaxController extends Controller
     public function generatePreview(Request $request)
     {
         $bon = $request->all();
-        $templatePath = storage_path('app/templates/bon_template.docx');
+        $templatePath = public_path('templates/bon_template.docx');
         $tempDir = storage_path('app/temp');
 
         // Create temp directory if needed

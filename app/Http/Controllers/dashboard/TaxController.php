@@ -28,10 +28,10 @@ class TaxController extends Controller
             return response()->json(['message' => 'لا توجد عقود خلال هذه الفترة'], 404);
         }
 
-        $templatePath = public_path('templates/tax-template.docx');
+        $templatePath = public_path('templates/tax_template.docx');
 
         // Correct output path definition
-        $outputPath = storage_path('app/public/tax_reports/tax_report-' . now()->format('YmdHis') . '.docx');
+        $outputPath = public_path('storage/tax_reports/tax_report-' . now()->format('YmdHis') . '.docx');
 
         // Ensure directory exists
         $reportsDir = dirname($outputPath);

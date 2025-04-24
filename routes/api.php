@@ -11,6 +11,7 @@ use App\Http\Controllers\dashboard\ContractController;
 use App\Http\Controllers\dashboard\ContractAttributesController;
 use App\Http\Controllers\dashboard\ContractTemplateController;
 use App\Http\Controllers\dashboard\ClientDocumentController;
+use App\Http\Controllers\dashboard\TaxController;
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -63,11 +64,14 @@ Route::middleware('auth:api')->group(function () {
     Route::get('contract_templates/{id}/attributes', [ContractTemplateController::class, 'getAttributes']);
     Route::get('/users/{user}/client-details', [ContractController::class, 'getClientDetails']);
 
-    Route::get('contracts/{contract}', function ($contractId) {
-        $contract = Contract::findOrFail($contractId);
-        $path = storage_path('app/public/contracts/' . $contractId . '.pdf');
-        return response()->file($path);
-    });
+    //Liste des formulaires fiscaux
+    Route::resource('impots', TaxController::class);
+    Route::post('/generatePreview', [TaxController::class, 'generatePreview']);
+    Route::post('/bon/final', [TaxController::class, 'generateFinalBon']);
 
+    // In routes/web.php
+    Route::get('/download-tax-report', function (Request $request) {
+        // Same logic as store() but only returns DOCX
+    })->name('download.tax.report');
 });
 

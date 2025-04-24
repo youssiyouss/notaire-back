@@ -102,6 +102,7 @@ class ContractController extends Controller
         // Create a new contract
         $contract = new Contract();
         $contract->template_id = $template->id;
+        $contract->notaire_id =  $request->notaryOffice;
         $contract->content = $this->generateContractContent(
             $template,
             $clients,
@@ -205,9 +206,6 @@ class ContractController extends Controller
             ], 201);
 
     }
-
-
-
 
     protected function generateContractContent($template, $clients, $attributes, $buyers, $notaryOfficeId)
     {
@@ -360,7 +358,12 @@ class ContractController extends Controller
      */
     public function show(string $id)
     {
-        //
+        try {
+            $contract = Contract::with('template','notaire','clients')->findOrFail($id);
+            return response()->json(['contract' => $contract], 200);
+        } catch (\Throwable $th) {
+            return response()->json(['error' => 'User not found.'], 404);
+        }
     }
 
     /**

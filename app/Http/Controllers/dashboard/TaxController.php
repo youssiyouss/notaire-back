@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use PhpOffice\PhpWord\TemplateProcessor;
-
+use Illuminate\Support\Str;
 
 class TaxController extends Controller
 {
@@ -84,24 +84,21 @@ class TaxController extends Controller
         $templatePath = public_path('templates/bon_template.docx');
         $tempDir = storage_path('app/temp');
 
-        // Create temp directory if needed
+        // Crée le dossier temporaire si nécessaire
         if (!file_exists($tempDir)) {
             mkdir($tempDir, 0777, true);
         }
 
-        // Prepare template paths
-        $tempDocPath = $tempDir . '/bon_temp_' . time() . '.docx';
-        $docxPath = $tempDir . '/preview_bon_' . time() . '.docx';
-        $generatedPdfPath = $tempDir . '/preview_bon_' . time() . '.pdf';
-
         try {
-            // Copy template
-            copy($templatePath, $tempDocPath);
+            $uniqueName = $bon['notaryOffice'] .'_'. Str::uuid();
+            $docxPath = $tempDir . '/' . $uniqueName . '.docx';
+            $generatedPdfPath = $tempDir . '/' . $uniqueName . '.pdf';
 
-            // Process template
-            $template = new TemplateProcessor($tempDocPath);
+            // Copie du template
+            copy($templatePath, $docxPath);
+            $template = new TemplateProcessor($docxPath);
 
-            // Handle empty values and set fields
+            // Préparation des champs
             $fields = [
                 'الموثق' => $bon['notaryOffice'] ?? '',
                 'رقم_الوصل' => $bon['receiptNumber'] ?? '',
@@ -134,29 +131,26 @@ class TaxController extends Controller
                 $template->setValue($key, $value);
             }
 
-            // Save DOCX
+            // Enregistre le .docx
             $template->saveAs($docxPath);
 
-            // Convert to PDF - Using full path to LibreOffice
-            $command = "\"C:\\Program Files\\LibreOffice\\program\\soffice.exe\" --headless --convert-to pdf --outdir " . escapeshellarg($tempDir) . " " . escapeshellarg($docxPath);
-
-            // Execute command with timeout
+            // Convertit en PDF avec LibreOffice
+            $command = "libreoffice --headless --convert-to pdf --outdir " . escapeshellarg($tempDir) . " " . escapeshellarg($docxPath) . " 2>&1";
             $output = shell_exec($command . " 2>&1");
 
             if (!file_exists($generatedPdfPath)) {
                 throw new \Exception("PDF conversion failed: " . ($output ?? 'No output'));
             }
 
-            // Store PDF
-            $pdfName = 'preview_bon_' . time() . '.pdf';
-            $publicPdfPath = 'bons_previews/' . $pdfName;
+            // Stocke le fichier PDF dans le disque public
+            $publicPdfName = $uniqueName . '.pdf';
+            $publicPdfPath = 'bons/' . $publicPdfName;
 
             if (!Storage::disk('public')->put($publicPdfPath, file_get_contents($generatedPdfPath))) {
                 throw new \Exception("Could not store PDF");
             }
 
-            // Clean up temporary files
-            @unlink($tempDocPath);
+            // Nettoyage
             @unlink($docxPath);
             @unlink($generatedPdfPath);
 
@@ -170,8 +164,7 @@ class TaxController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            // Clean up any created files
-            @unlink($tempDocPath ?? '');
+            // Nettoyage de secours
             @unlink($docxPath ?? '');
             @unlink($generatedPdfPath ?? '');
 

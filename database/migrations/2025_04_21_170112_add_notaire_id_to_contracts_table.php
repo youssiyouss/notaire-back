@@ -13,6 +13,8 @@ return new class extends Migration
     {
         Schema::table('contracts', function (Blueprint $table) {
             $table->unsignedBigInteger('notaire_id')->nullable()->after('template_id');
+            $table->string('receiptPath')->nullable()->after('template_id');
+            $table->double('price')->nullable()->after('template_id');
             $table->foreign('notaire_id')->references('id')->on('users')->onDelete('set null');
         });
     }

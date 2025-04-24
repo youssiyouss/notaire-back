@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Contract extends Model
 {
     protected $fillable = [
-        'template_id', 'content', 'notaire_id', 'status','pdf_path','created_by', 'updated_by'
+        'template_id', 'content','receiptPath','price' ,'notaire_id', 'status','pdf_path','created_by', 'updated_by'
     ];
 
 

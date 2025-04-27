@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
+use PhpOffice\PhpWord\TemplateProcessor;
+use Illuminate\Support\Facades\File;
 
 class ContractController extends Controller
 {
@@ -93,263 +95,213 @@ class ContractController extends Controller
      */
     public function store(Request $request)
     {
-       // Log::info($request->all());
-        // Retrieve the template and clients
         $template = ContractTemplate::find($request->contractType);
         $clients = User::whereIn('id', array_column($request->clients, 'id'))->get();
         $buyers = User::whereIn('id', array_column($request->buyers, 'id'))->get();
 
-        // Create a new contract
+        // Create contract record
         $contract = new Contract();
         $contract->template_id = $template->id;
-        $contract->notaire_id =  $request->notaryOffice;
-        $contract->content = $this->generateContractContent(
-            $template,
-            $clients,
-            $request['attributes'],
-            $buyers,
-            $request->notaryOffice
-        );
+        $contract->notaire_id = $request->notaryOffice;
+        $contract->status = 'Non Payé';
         $contract->created_by = Auth::id();
         $contract->save();
 
-         // Store contract attributes
-        if ($request->attributes) {
-            foreach ($request->attributes as $attributeData) {
-                $attribute = new ContractAttributes();
-                $attribute->contract_id = $contract->id;
-                $attribute->name = $attributeData['name'];
-                $attribute->value = $attributeData['value'];
-                $attribute->save();
-            }
+        // Store attributes
+        foreach ($request['attributes'] ?? [] as $attributeData) {
+            ContractAttributes::create([
+                'contract_id' => $contract->id,
+                'name' => $attributeData['name'],
+                'value' => $attributeData['value'],
+            ]);
         }
 
-        // Attach clients to the contract
+        // Link clients & buyers
         foreach ($clients as $client) {
-            $c = new ContractClient();
-            $c->contract_id = $contract->id;
-            $c->client_id = $client->id;
-            $c->save();
+            ContractClient::create(['contract_id' => $contract->id, 'client_id' => $client->id]);
         }
-        foreach ($buyers as $client) {
-            $c = new ContractClient();
-            $c->contract_id = $contract->id;
-            $c->client_id = $client->id;
-            $c->save();
+        foreach ($buyers as $buyer) {
+            ContractClient::create(['contract_id' => $contract->id, 'client_id' => $buyer->id]);
         }
 
-        $style = <<<'HTML'
-                        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-                        <style>
+        // Process the Word template
+        $templatePath = storage_path("app/public/{$template->content}");
+        $uniqueId = uniqid();
+        $docxPath = storage_path("app/tmp_contract_{$uniqueId}.docx");
+        $pdfOutputDir = storage_path("app/public/contracts");
 
-                            body {
-                                font-family:  'Times New Roman','Arial Unicode MS', 'Traditional Arabic', sans-serif;
-                                direction: rtl;
-                                text-align: right;
-                                font-size: 14px;
-                            }
+        // Ensure contracts directory exists
+        Storage::disk('public')->makeDirectory('contracts');
 
-                            .ql-align-center { text-align: center; }
-                            .ql-align-right { text-align: right; }
-                            .ql-align-left { text-align: left; }
+        $pdfFileName = "contract_{$contract->id}_" . time() . ".pdf";
+        $pdfPath = "{$pdfOutputDir}/{$pdfFileName}";
 
-                            .ql-size-small { font-size: 0.75em; }
-                            .ql-size-large { font-size: 1.5em; }
-                            .ql-size-huge  { font-size: 2.5em; }
-                        </style>
-                    HTML;
+        // Initialize template processor
+        $processor = new TemplateProcessor($templatePath);
 
+        // Replace placeholders in the correct order
+        $processor = $this->replacePlaceholdersInTemplate($processor, $template, $clients, $request['attributes'], $buyers, $request->notaryOffice);
+        // Save the modified template
+        $processor->saveAs($docxPath);
 
-            $fullHtml = <<<HTML
-            <html lang="ar" dir="rtl">
-            <head>
-                $style
-                <meta charset="UTF-8">
-            </head>
-            <body>
-                <div style="display: flex; flex-direction: row-reverse;">
-                    <!-- Contract content area -->
-                    <div class="container" style="padding-right: 7.5cm; padding-bottom: 4cm; border-top: 2cm;">
-                        <div style="border-right: 2px solid black;border-left: 2px solid black; text-align: left;">
-                            $contract->content
-                        </div>
-                    </div>
-                </div>
-            </body>
-            </html>
-            HTML;
+        // Convert to PDF
+        $libreOfficeBin = env('LIBREOFFICE_BIN');
+        $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir " .
+                escapeshellarg($pdfOutputDir) . ' ' . escapeshellarg($docxPath);
+        shell_exec($command . " 2>&1");
 
-            // Generate PDF with wkhtmltopdf
-            $pdf = PDF::loadHTML($fullHtml)
-                ->setOption('encoding', 'utf-8')
-                ->setOption('disable-smart-shrinking', true)
-                ->setOption('margin-top', 10)
-                ->setOption('margin-bottom', 40)
-                ->setOption('margin-left', 10)
-                ->setOption('margin-right', 10)
-                ->setOption('no-outline', true)
-                ->setOption('enable-local-file-access', true); // Important for local fonts
+        // Handle the generated PDF
+        $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
+        if (File::exists($generatedPdfPath)) {
+            File::move($generatedPdfPath, $pdfPath);
+        }
 
-            $pdfContent = $pdf->output();
-            $fileName = 'contracts/contract_' . $contract->id . '_' . time() . '.pdf';
+        // Update contract with PDF path
+        $contract->pdf_path = "contracts/{$pdfFileName}";
+        $contract->save();
 
-            Storage::disk('public')->makeDirectory('contracts');
-            Storage::disk('public')->put($fileName, $pdfContent);
+        // Cleanup
+        File::delete($docxPath);
 
-            $contract->pdf_path = $fileName;
-            $contract->save();
-
-            return response()->json([
-                'message' => 'Contract created successfully!',
-                'contract' => $contract,
-                'pdfUrl' => Storage::disk('public')->url($fileName) // Add this line
-            ], 201);
-
+        return response()->json([
+            'message' => 'Contrat créé avec succès!',
+            'contract' => $contract,
+            'pdfUrl' => Storage::disk('public')->url("contracts/{$pdfFileName}")
+        ], 201);
     }
 
-    protected function generateContractContent($template, $clients, $attributes, $buyers, $notaryOfficeId)
+    protected function replacePlaceholdersInTemplate($processor, $template, $clients, $attributes, $buyers, $notaryOfficeId)
     {
-        $content = $template->content;
-
-        // 1. First replace notary office (simplest replacement)
-        $content = $this->replaceNotaryOffice($content, $notaryOfficeId);
-
-        // 2. Replace attributes between []
-        $content = $this->replaceAttributes($content, $attributes);
-
-        // 3. Then handle transformations (most complex)
-        $content = $this->replacePronounTransformationsA(
-            $content,
-            json_decode($template->part_a_transformations, true),
-            $clients
-        );
-
-        $content = $this->replacePronounTransformationsB(
-            $content,
-            json_decode($template->part_b_transformations, true),
-            $buyers
-        );
-
-        $content = $this->replacePronounTransformations(
-            $content,
-            json_decode($template->part_all_transformations, true),
-            $clients,
-            $buyers
-        );
-
-        return $content;
-    }
-        protected function replaceAttributes($content, $attributes)
-        {
-            foreach ($attributes as $attribute) {
-                $placeholder = '[' . $attribute['name'] . ']';
-                $content = str_ireplace($placeholder, $attribute['value'], $content);
-            }
-            return $content;
-        }
-
-        protected function replacePronounTransformationsA($content, $transformations, $clients)
-        {
-            foreach ($transformations as $transformation) {
-                $placeholder = '%!' . $transformation['placeholder'] . '!%';
-
-                // Determine which form to use based on clients/buyers
-                $form = $this->determinePronounForm($transformation, $clients);
-
-                $content = str_replace($placeholder, $form, $content);
-            }
-            return $content;
-        }
-
-        protected function replacePronounTransformationsB($content, $transformations,$buyers)
-        {
-            foreach ($transformations as $transformation) {
-                $placeholder = '%!!' . $transformation['placeholder'] . '!!%';
-
-                // Determine which form to use based on clients/buyers
-                $form = $this->determinePronounForm($transformation, $buyers);
-
-                $content = str_replace($placeholder, $form, $content);
-            }
-            return $content;
-        }
-
-        protected function replacePronounTransformations($content, $transformations, $clients, $buyers)
-        {
-            foreach ($transformations as $transformation) {
-                $placeholder = '%' . $transformation['placeholder'] . '%';
-
-                // Determine which form to use based on clients/buyers
-                $form = $this->determinePronounFormAll($transformation, $clients, $buyers);
-
-                $content = str_replace($placeholder, $form, $content);
-            }
-            return $content;
-        }
-
-        protected function determinePronounForm($transformation, $users)
-        {
-            $maleCount = 0;
-            $femaleCount = 0;
-
-            foreach ($users as $user) {
-                // Make case-insensitive comparison
-                if (strtolower($user->sexe) === 'male') {
-                    $maleCount++;
-                } else {
-                    $femaleCount++;
-                }
-            }
-
-            if ($maleCount > 0 && $femaleCount === 0) {
-                return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
-            } elseif ($femaleCount > 0 && $maleCount === 0) {
-                return $femaleCount > 1 ? $transformation['femalepluralForm'] : $transformation['femaleForm'];
-            } else {
-                return $transformation['malepluralForm'];
-            }
-        }
-
-        protected function determinePronounFormAll($transformation, $clients, $buyers)
-        {
-            // Count genders among all parties
-            $maleCount = 0;
-            $femaleCount = 0;
-
-            foreach ($clients as $client) {
-                $client->sexe === 'male' ? $maleCount++ : $femaleCount++;
-            }
-
-            foreach ($buyers as $buyer) {
-                $buyer->sexe === 'male' ? $maleCount++ : $femaleCount++;
-            }
-
-            // Determine which form to use based on Arabic grammar rules
-            if ($maleCount > 0 && $femaleCount === 0) {
-                // All male
-                return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
-            } elseif ($femaleCount > 0 && $maleCount === 0) {
-                // All female
-                return $femaleCount > 1 ? $transformation['femalepluralForm'] : $transformation['femaleForm'];
-            } else {
-                // Mixed group - in Arabic, masculine plural is used for mixed groups
-                return $transformation['malepluralForm'];
-            }
-        }
-
-    protected function replaceNotaryOffice($content, $notaryOfficeId)
-    {
+        // 1. Replace notary office placeholders
         $notary = User::find($notaryOfficeId);
         if ($notary) {
             $notaryName = $notary->nom . ' ' . $notary->prenom;
-            // Replace both Arabic and French placeholders
-            $content = str_replace(
-                ['@موثق@', '@notaire@'],
-                [$notaryName, $notaryName],
-                $content
-            );
+            $this->setValueWithEncoding($processor, 'Notaire', $notaryName);
         }
-        return $content;
+
+        // 2. Replace attributes (variables)
+        foreach ($attributes as $attr) {
+            $this->setValueWithEncoding($processor, $attr['name'] , $attr['value']);
+        }
+
+        // 3. Replace gender-specific pronouns
+        $this->replaceArabicPronouns($processor, $template, $clients, $buyers);
+
+        // Return the modified processor
+        return $processor;
+    }
+
+    protected function replaceArabicPronouns($processor, $template, $clients, $buyers)
+    {
+        // Part A - clients (single angle brackets)
+        $partA = json_decode($template->part_a_transformations, true);
+        foreach ($partA as $trans) {
+            $value = $this->determinePronounForm($trans, $clients);
+            $this->setValueWithEncoding($processor, "A_{$trans['placeholder']}", $value);
+        }
+
+        // Part B - buyers (double angle brackets)
+        $partB = json_decode($template->part_b_transformations, true);
+        foreach ($partB as $trans) {
+            $value = $this->determinePronounForm($trans, $buyers);
+            $this->setValueWithEncoding($processor, "B_{$trans['placeholder']}", $value);
+        }
+
+        // All parties (triple angle brackets)
+        $partAll =  json_decode($template->part_all_transformations, true);
+        foreach ($partAll as $trans) {
+            $value = $this->determinePronounFormAll($trans, $clients, $buyers);
+            $this->setValueWithEncoding($processor,"All_{$trans['placeholder']}", $value);
+        }
+    }
+
+    protected function setValueWithEncoding($processor, $search, $replace)
+    {
+        try {
+            $processor->setValue($search, $replace);
+        } catch (\Exception $e) {
+            \Log::error("Replacement failed for placeholder: $search", ['error' => $e->getMessage()]);
+        }
+    }
+
+
+
+    protected function replacePlaceholder($processor, $search, $replace)
+    {
+        // Use reflection to access the protected 'tempDocument' property
+        $reflection = new \ReflectionClass($processor);
+        $property = $reflection->getProperty('tempDocument');
+        $property->setAccessible(true);
+        $document = $property->getValue($processor);
+
+        foreach ($document as $key => $part) {
+            $document[$key] = str_replace($search, $replace, $part);
+        }
+
+        $property->setValue($processor, $document);
+    }
+
+    protected function setValueWithRetry($processor, $search, $replace)
+    {
+        try {
+            // First try the normal way
+            $processor->setValue($search, $replace);
+        } catch (\Exception $e) {
+            // If that fails, try with HTML entities for Arabic characters
+            $searchEncoded = mb_convert_encoding($search, 'HTML-ENTITIES', 'UTF-8');
+            $replaceEncoded = mb_convert_encoding($replace, 'HTML-ENTITIES', 'UTF-8');
+            $processor->setValue($searchEncoded, $replaceEncoded);
+        }
+    }
+
+    protected function determinePronounForm($transformation, $users)
+    {
+        $maleCount = 0;
+        $femaleCount = 0;
+
+        foreach ($users as $user) {
+            // Make case-insensitive comparison
+            if (strtolower($user->sexe) === 'male') {
+                $maleCount++;
+            } else {
+                $femaleCount++;
+            }
+        }
+
+        if ($maleCount > 0 && $femaleCount === 0) {
+            return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
+        } elseif ($femaleCount > 0 && $maleCount === 0) {
+            return $femaleCount > 1 ? $transformation['femalepluralForm'] : $transformation['femaleForm'];
+        } else {
+            return $transformation['malepluralForm'];
+        }
+    }
+
+    protected function determinePronounFormAll($transformation, $clients, $buyers)
+    {
+        // Count genders among all parties
+        $maleCount = 0;
+        $femaleCount = 0;
+
+        foreach ($clients as $client) {
+            $client->sexe === 'male' ? $maleCount++ : $femaleCount++;
+        }
+
+        foreach ($buyers as $buyer) {
+            $buyer->sexe === 'male' ? $maleCount++ : $femaleCount++;
+        }
+
+        // Determine which form to use based on Arabic grammar rules
+        if ($maleCount > 0 && $femaleCount === 0) {
+            // All male
+            return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
+        } elseif ($femaleCount > 0 && $maleCount === 0) {
+            // All female
+            return $femaleCount > 1 ? $transformation['femalepluralForm'] : $transformation['femaleForm'];
+        } else {
+            // Mixed group - in Arabic, masculine plural is used for mixed groups
+            return $transformation['malepluralForm'];
+        }
     }
 
 

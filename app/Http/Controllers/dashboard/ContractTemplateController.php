@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\ContractTemplate;
 use App\Models\ContractType;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Error;
 use Exception;
 
@@ -25,15 +26,33 @@ class ContractTemplateController extends Controller
 
     }
 
-    public function show(string $id)
-    {
-        try {
-            $template = ContractTemplate::with('contractType')->findOrFail($id);
-            return response()->json(['template' => $template], 200);
-        } catch (\Throwable $th) {
-            return response()->json(['error' => 'User not found.'], 404);
-        }
-    }
+  public function show(string $id)
+{
+    $template = ContractTemplate::with('contractType')->findOrFail($id);
+
+    // Chemin du fichier .docx à convertir
+    $docxPath = Storage::disk('public')->path($template->content);
+
+    // Récupère le nom de base du fichier sans extension
+    $pdfName = pathinfo($template->content, PATHINFO_FILENAME) . '.pdf';
+
+    // Chemin complet du fichier PDF généré
+    $pdfPath = storage_path('app/public/templates/pdf_previews' . $pdfName);
+
+    // Commande pour convertir le fichier .docx en PDF avec LibreOffice
+    $libreOfficeBin = env('LIBREOFFICE_BIN');
+    $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir " . escapeshellarg(storage_path('app/public/templates/pdf_previews')) . " " . escapeshellarg($docxPath);
+
+    // Exécution de la commande
+    $output = shell_exec($command . " 2>&1");
+
+    // Retourner le lien du PDF généré
+    return response()->json([
+        'template' => $template,
+        'pdf_url' => asset('storage/templates/pdf_previews/' . $pdfName) // Retourne le lien correct du fichier PDF
+    ], 200);
+}
+
 
     public function store(Request $request)
     {
@@ -44,11 +63,15 @@ class ContractTemplateController extends Controller
             'taxe_pourcentage'=>'required|numeric',
             'taxe_type'=>'required',
             'attributes' => 'required|array',
+            //'content' => 'required|string',
+            'content' => 'required|file|mimes:docx|max:5120',
             'part_a_transformations' => 'required|array', // Will receive JSON string
             'part_b_transformations' => 'required|array', // Will receive JSON string
             'part_all_transformations' => 'required|array', // Will receive JSON string
-            'content' => 'required|string',
         ]);
+
+        $fileName = time() . '_' . $request->file('content')->getClientOriginalName();
+        $path = $request->file('content')->storeAs('templates/contracts', $fileName, 'public');
 
         $template = ContractTemplate::create([
             'contract_type_id' => $validated['category_id'],
@@ -59,7 +82,7 @@ class ContractTemplateController extends Controller
             'part_a_transformations' => json_encode($validated['part_a_transformations']),
             'part_b_transformations' => json_encode($validated['part_b_transformations']),
             'part_all_transformations' => json_encode($validated['part_all_transformations']),
-            'content' => $validated['content'],
+            'content' => $path,
             'created_by' => auth()->id(),
         ]);
 
@@ -71,16 +94,17 @@ class ContractTemplateController extends Controller
 
     public function update(Request $request, $id)
     {
+        Log::info($request->all());
         $validated = $request->validate([
-            'contract_type_id' => 'required|exists:contract_types,id',
-            'contract_subtype' => 'required|string|max:255',
-            'taxe_pourcentage'=>'required|numeric',
-            'taxe_type'=>'required',
-            'attributes' => 'required|string', // Will receive JSON string
-            'part_a_transformations' => 'required|string', // Will receive JSON string
-            'part_b_transformations' => 'required|string', // Will receive JSON string
-            'part_all_transformations' => 'required|string', // Will receive JSON string
-            'content' => 'required|string',
+            'category_id' => 'exists:contract_types,id',
+            'subcategory_name' => 'string|max:255',
+            'taxe_pourcentage'=>'numeric',
+            'taxe_type'=>'string',
+            'attributes' => 'array', // Will receive JSON string
+            'part_a_transformations' => 'array', // Will receive JSON string
+            'part_b_transformations' => 'array', // Will receive JSON string
+            'part_all_transformations' => 'array', // Will receive JSON string
+            'content' => 'nullable|file|mimes:docx|max:5120',
         ]);
 
         // Find the template to update
@@ -88,17 +112,24 @@ class ContractTemplateController extends Controller
 
         // Update the template
         $template->update([
-            'contract_type_id' => $validated['contract_type_id'],
-            'contract_subtype' => $validated['contract_subtype'],
+            'contract_type_id' => $validated['category_id'],
+            'contract_subtype' => $validated['subcategory_name'],
             'taxe_type' => $validated['taxe_type'],
             'taxe_pourcentage' => $validated['taxe_pourcentage'],
             'attributes' => $validated['attributes'], // Already JSON string from frontend
             'part_a_transformations' => $validated['part_a_transformations'], // Already JSON string
             'part_b_transformations' => $validated['part_b_transformations'], // Already JSON string
             'part_all_transformations' => $validated['part_all_transformations'], // Already JSON string
-            'content' => $validated['content'],
             'updated_by' => auth()->id(),
         ]);
+
+        if($request->file('content')){
+            Storage::disk('public')->delete($template->content);  //delete old template file
+            $fileName = time() . '_' . $request->file('content')->getClientOriginalName();
+            $path = $request->file('content')->storeAs('templates/contracts', $fileName, 'public');
+            $template->content = $path;
+            $template->save();
+         }
 
         return response()->json([
             'message' => 'Contract Template updated successfully',

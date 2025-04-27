@@ -135,7 +135,9 @@ class TaxController extends Controller
             $template->saveAs($docxPath);
 
             // Convertit en PDF avec LibreOffice
-            $command = "libreoffice --headless --convert-to pdf --outdir " . escapeshellarg($tempDir) . " " . escapeshellarg($docxPath) . " 2>&1";
+            $libreOfficeBin = env('LIBREOFFICE_BIN');
+            $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir " . escapeshellarg($tempDir) . ' ' . escapeshellarg($docxPath);
+
             $output = shell_exec($command . " 2>&1");
 
             if (!file_exists($generatedPdfPath)) {

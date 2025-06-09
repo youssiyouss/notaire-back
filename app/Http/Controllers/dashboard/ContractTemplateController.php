@@ -68,6 +68,22 @@ class ContractTemplateController extends Controller
             'part_a_transformations' => 'required|array', // Will receive JSON string
             'part_b_transformations' => 'required|array', // Will receive JSON string
             'part_all_transformations' => 'required|array', // Will receive JSON string
+            'original' => 'nullable|numeric',
+            'copy' => 'nullable|numeric',
+            'documentation' => 'nullable|numeric',
+            'publication' => 'nullable|numeric',
+            'consultation' => 'nullable|numeric',
+            'consultationFee' => 'nullable|numeric',
+            'workFee' => 'nullable|numeric',
+            'others' => 'nullable|numeric',
+            'stamp' => 'nullable|numeric',
+            'registration' => 'nullable|numeric',
+            'advertisement' => 'nullable|numeric',
+            'rkm' => 'nullable|numeric',
+            'announcements' => 'nullable|numeric',
+            'deposit' => 'nullable|numeric',
+            'boal' => 'nullable|numeric',
+            'registration_or_cancellation' => 'nullable|numeric',
         ]);
 
         $fileName = time() . '_' . $request->file('content')->getClientOriginalName();
@@ -84,6 +100,22 @@ class ContractTemplateController extends Controller
             'part_all_transformations' => json_encode($validated['part_all_transformations']),
             'content' => $path,
             'created_by' => auth()->id(),
+            'original' => $validated['original'] ?? null,
+            'copy' => $validated['copy'] ?? null,
+            'documentation' => $validated['documentation'] ?? null,
+            'publication' => $validated['publication'] ?? null,
+            'consultation' => $validated['consultation'] ?? null,
+            'consultationFee' => $validated['consultationFee'] ?? null,
+            'workFee' => $validated['workFee'] ?? null,
+            'others' => $validated['others'] ?? null,
+            'stamp' => $validated['stamp'] ?? null,
+            'registration' => $validated['registration'] ?? null,
+            'advertisement' => $validated['advertisement'] ?? null,
+            'rkm' => $validated['rkm'] ?? null,
+            'announcements' => $validated['announcements'] ?? null,
+            'deposit' => $validated['deposit'] ?? null,
+            'boal' => $validated['boal'] ?? null,
+            'registration_or_cancellation' => $validated['registration_or_cancellation'] ?? null,
         ]);
 
         return response()->json([
@@ -105,6 +137,22 @@ class ContractTemplateController extends Controller
             'part_b_transformations' => 'array', // Will receive JSON string
             'part_all_transformations' => 'array', // Will receive JSON string
             'content' => 'nullable|file|mimes:docx|max:5120',
+            'original' => 'nullable|numeric',
+            'copy' => 'nullable|numeric',
+            'documentation' => 'nullable|numeric',
+            'publication' => 'nullable|numeric',
+            'consultation' => 'nullable|numeric',
+            'consultationFee' => 'nullable|numeric',
+            'workFee' => 'nullable|numeric',
+            'others' => 'nullable|numeric',
+            'stamp' => 'nullable|numeric',
+            'registration' => 'nullable|numeric',
+            'advertisement' => 'nullable|numeric',
+            'rkm' => 'nullable|numeric',
+            'announcements' => 'nullable|numeric',
+            'deposit' => 'nullable|numeric',
+            'boal' => 'nullable|numeric',
+            'registration_or_cancellation' => 'nullable|numeric',
         ]);
 
         // Find the template to update
@@ -121,6 +169,22 @@ class ContractTemplateController extends Controller
             'part_b_transformations' => $validated['part_b_transformations'], // Already JSON string
             'part_all_transformations' => $validated['part_all_transformations'], // Already JSON string
             'updated_by' => auth()->id(),
+            'original' => $validated['original'] ?? null,
+            'copy' => $validated['copy'] ?? null,
+            'documentation' => $validated['documentation'] ?? null,
+            'publication' => $validated['publication'] ?? null,
+            'consultation' => $validated['consultation'] ?? null,
+            'consultationFee' => $validated['consultationFee'] ?? null,
+            'workFee' => $validated['workFee'] ?? null,
+            'others' => $validated['others'] ?? null,
+            'stamp' => $validated['stamp'] ?? null,
+            'registration' => $validated['registration'] ?? null,
+            'advertisement' => $validated['advertisement'] ?? null,
+            'rkm' => $validated['rkm'] ?? null,
+            'announcements' => $validated['announcements'] ?? null,
+            'deposit' => $validated['deposit'] ?? null,
+            'boal' => $validated['boal'] ?? null,
+            'registration_or_cancellation' => $validated['registration_or_cancellation'] ?? null,
         ]);
 
         if($request->file('content')){

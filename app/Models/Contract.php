@@ -21,7 +21,7 @@ class Contract extends Model
 
     public function clients()
     {
-        return $this->belongsToMany(User::class, 'contract_client', 'contract_id', 'client_id'); // Si tu veux garder les infos du pivot
+        return $this->hasMany(ContractClient::class);
     }
 
     public function notaire() {

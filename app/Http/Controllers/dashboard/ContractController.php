@@ -26,7 +26,7 @@ class ContractController extends Controller
     {
         try {
             $contracts = Contract::with([
-                'clients:id,nom,prenom,email',
+                'clients.client',
                 'creator:id,nom,prenom',
                 'editor:id,nom,prenom',
                 'template:id,contract_subtype,taxe_type,taxe_pourcentage,contract_type_id',
@@ -118,10 +118,10 @@ class ContractController extends Controller
 
         // Link clients & buyers
         foreach ($clients as $client) {
-            ContractClient::create(['contract_id' => $contract->id, 'client_id' => $client->id]);
+            ContractClient::create(['contract_id' => $contract->id, 'client_id' => $client->id, 'etat'=>$request->clientType,'type'=>'PartA']);
         }
         foreach ($buyers as $buyer) {
-            ContractClient::create(['contract_id' => $contract->id, 'client_id' => $buyer->id]);
+            ContractClient::create(['contract_id' => $contract->id, 'client_id' => $buyer->id, 'etat'=>$request->buyerType, 'type'=>'PartB']);
         }
 
         // Process the Word template
@@ -224,8 +224,6 @@ class ContractController extends Controller
         }
     }
 
-
-
     protected function replacePlaceholder($processor, $search, $replace)
     {
         // Use reflection to access the protected 'tempDocument' property
@@ -311,10 +309,20 @@ class ContractController extends Controller
     public function show(string $id)
     {
         try {
-            $contract = Contract::with('template','notaire','clients')->findOrFail($id);
+            $contract = Contract::with([
+                'template',
+                'notaire',
+                'clients.client',
+                'attributes'
+                ])->findOrFail($id);
+            Log::info($contract);
             return response()->json(['contract' => $contract], 200);
-        } catch (\Throwable $th) {
-            return response()->json(['error' => 'User not found.'], 404);
+        }catch (\Error $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch(\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
         }
     }
 
@@ -331,7 +339,135 @@ class ContractController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        Log::info($request);
+        // Find the existing contract
+        $contract = Contract::findOrFail($id);
+        $template = ContractTemplate::find($request->contractType);
+
+        // Get clients and buyers from request
+        $clients = User::whereIn('id', array_column($request->clients, 'id'))->get();
+        $buyers = User::whereIn('id', array_column($request->buyers, 'id'))->get();
+
+        // Update contract record
+        $contract->template_id = $template->id;
+        $contract->notaire_id = $request->notaryOffice;
+        $contract->save();
+
+        // Sync attributes - delete old ones and create new ones
+        ContractAttributes::where('contract_id', $contract->id)->delete();
+        foreach ($request['attributes'] ?? [] as $attributeData) {
+            ContractAttributes::create([
+                'contract_id' => $contract->id,
+                'name' => $attributeData['name'],
+                'value' => $attributeData['value'],
+            ]);
+        }
+
+        // Sync clients & buyers - delete old relationships first
+        ContractClient::where('contract_id', $contract->id)->delete();
+        foreach ($clients as $client) {
+            ContractClient::create([
+                'contract_id' => $contract->id,
+                'client_id' => $client->id,
+                'etat' => $request->clientType,
+                'type' => 'PartA'
+            ]);
+        }
+        foreach ($buyers as $buyer) {
+            ContractClient::create([
+                'contract_id' => $contract->id,
+                'client_id' => $buyer->id,
+                'etat' => $request->buyerType,
+                'type' => 'PartB'
+            ]);
+        }
+
+        // Only regenerate PDF if template or attributes changed
+        if ($this->shouldRegeneratePdf($contract, $request)) {
+            $templatePath = storage_path("app/public/{$template->content}");
+            $uniqueId = uniqid();
+            $docxPath = storage_path("app/tmp_contract_{$uniqueId}.docx");
+            $pdfOutputDir = storage_path("app/public/contracts");
+
+            // Ensure contracts directory exists
+            Storage::disk('public')->makeDirectory('contracts');
+
+            $pdfFileName = "contract_{$contract->id}_" . time() . ".pdf";
+            $pdfPath = "{$pdfOutputDir}/{$pdfFileName}";
+
+            // Initialize template processor
+            $processor = new TemplateProcessor($templatePath);
+
+            // Replace placeholders
+            $processor = $this->replacePlaceholdersInTemplate(
+                $processor,
+                $template,
+                $clients,
+                $request['attributes'],
+                $buyers,
+                $request->notaryOffice
+            );
+
+            // Save the modified template
+            $processor->saveAs($docxPath);
+
+            // Convert to PDF
+            $libreOfficeBin = env('LIBREOFFICE_BIN');
+            $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir " .
+                    escapeshellarg($pdfOutputDir) . ' ' . escapeshellarg($docxPath);
+            shell_exec($command . " 2>&1");
+
+            // Handle the generated PDF
+            $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
+            if (File::exists($generatedPdfPath)) {
+                // Delete old PDF if exists
+                if ($contract->pdf_path) {
+                    Storage::disk('public')->delete($contract->pdf_path);
+                }
+                File::move($generatedPdfPath, $pdfPath);
+            }
+
+            // Update contract with new PDF path
+            $contract->pdf_path = "contracts/{$pdfFileName}";
+            $contract->save();
+
+            // Cleanup
+            File::delete($docxPath);
+        }
+
+        return response()->json([
+            'message' => 'Contrat mis à jour avec succès!',
+            'contract' => $contract,
+            'pdfUrl' => $contract->pdf_path ? Storage::disk('public')->url($contract->pdf_path) : null
+        ], 200);
+    }
+
+    /**
+     * Determine if PDF needs to be regenerated
+     */
+    private function shouldRegeneratePdf($contract, $request)
+    {
+        // Check if template changed
+        if ($contract->template_id != $request->contractType) {
+            return true;
+        }
+
+        // Check if notary office changed
+        if ($contract->notaire_id != $request->notaryOffice) {
+            return true;
+        }
+
+        // Check if attributes changed (simplified check)
+        $currentAttributes = $contract->attributes->pluck('value', 'name')->toArray();
+        $newAttributes = collect($request['attributes'] ?? [])->pluck('value', 'name')->toArray();
+
+        if ($currentAttributes != $newAttributes) {
+            return true;
+        }
+
+        // Add more conditions as needed
+        return false;
+
     }
 
     /**

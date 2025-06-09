@@ -25,8 +25,11 @@ class TaxController extends Controller
             ->get();
 
         if ($contracts->isEmpty()) {
-            return response()->json(['message' => 'لا توجد عقود خلال هذه الفترة'], 404);
+            return response()->json([
+                'message' => __('tax.no_contracts')  // Define this in your translation files
+            ], 422);
         }
+
 
         $templatePath = public_path('templates/tax_template.docx');
 
@@ -81,6 +84,7 @@ class TaxController extends Controller
     public function generatePreview(Request $request)
     {
         $bon = $request->all();
+        Log::info($bon);
         $templatePath = public_path('templates/bon_template.docx');
         $tempDir = storage_path('app/temp');
 

@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('contract_id')->constrained('contracts')->onDelete('cascade');
             $table->foreignId('client_id')->constrained('users')->onDelete('cascade');
+            $table->string('etat');
+            $table->string('type');
             $table->timestamps();
         });
     }

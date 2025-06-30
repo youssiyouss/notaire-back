@@ -34,7 +34,10 @@ Route::get('/user', [AuthController::class, 'user']);
 Route::get('/verify-email/{token}', [ AuthController::class, 'verifyEmail']);
 Route::post('/verification/resend/', [AuthController::class, 'resendVerificationEmail']);
 Route::post('/change-password', [AuthController::class, 'changePassword']);
-
+Route::get('/test-libreoffice', function () {
+    $output = shell_exec('/usr/bin/libreoffice --version 2>&1');
+    return response($output);
+});
 
 Route::middleware('auth:api')->group(function () {
     Route::resource('users', UserController::class);
@@ -74,9 +77,5 @@ Route::middleware('auth:api')->group(function () {
         // Same logic as store() but only returns DOCX
     })->name('download.tax.report');
 
-    Route::get('/test-libreoffice', function () {
-        $output = shell_exec('/usr/bin/libreoffice --version 2>&1');
-        return response($output);
-    });
 });
 

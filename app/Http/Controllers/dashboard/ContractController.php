@@ -193,7 +193,7 @@ class ContractController extends Controller
                     . escapeshellarg($pdfOutputDir) . ' '
                     . escapeshellarg($docxPath)
                     . " 2>&1";
-           // shell_exec($command);
+            shell_exec($command);
 
             // 9️⃣ Move and record the generated PDF
             $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";

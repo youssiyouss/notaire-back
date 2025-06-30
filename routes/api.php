@@ -73,5 +73,10 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/download-tax-report', function (Request $request) {
         // Same logic as store() but only returns DOCX
     })->name('download.tax.report');
+
+    Route::get('/test-libreoffice', function () {
+        $output = shell_exec('/usr/bin/libreoffice --version 2>&1');
+        return response($output);
+    });
 });
 

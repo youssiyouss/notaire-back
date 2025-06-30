@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 use PhpOffice\PhpWord\TemplateProcessor;
 use Illuminate\Support\Facades\File;
+use ZipArchive;
 
 class ContractController extends Controller
 {
@@ -56,12 +57,16 @@ class ContractController extends Controller
 
             $query = $request->input('search'); // Correct way to retrieve POST data
 
-            $users = User::where('nom', 'LIKE', "%{$query}%")
-                ->orWhere('prenom', 'LIKE', "%{$query}%")
-                ->orWhere('email', 'LIKE', "%{$query}%")
-                ->orWhere('date_de_naissance', 'LIKE', "%{$query}%")
-                ->limit(10)
-                ->get();
+            $users = User::where('role', 'Client')
+            ->where(function($q) use ($query) {
+                $q->where('nom', 'LIKE', "%{$query}%")
+                  ->orWhere('prenom', 'LIKE', "%{$query}%")
+                  ->orWhere('email', 'LIKE', "%{$query}%")
+                  ->orWhere('date_de_naissance', 'LIKE', "%{$query}%");
+            })
+            ->limit(15)
+            ->get();
+
             return response()->json($users);
 
         } catch (\Exception $e) {
@@ -95,161 +100,114 @@ class ContractController extends Controller
      */
     public function store(Request $request)
     {
+        // 1️⃣ Load template & parties
         $template = ContractTemplate::find($request->contractType);
-        $clients = User::whereIn('id', array_column($request->clients, 'id'))->get();
-        $buyers = User::whereIn('id', array_column($request->buyers, 'id'))->get();
+        $clients  = User::whereIn('id', array_column($request->clients, 'id'))->get();
+        $buyers   = User::whereIn('id', array_column($request->buyers, 'id'))->get();
 
-        // Create contract record
-        $contract = new Contract();
-        $contract->template_id = $template->id;
-        $contract->notaire_id = $request->notaryOffice;
-        $contract->status = 'Non Payé';
-        $contract->created_by = Auth::id();
-        $contract->save();
+        // 2️⃣ Create the Contract record
+        $contract = Contract::create([
+            'template_id' => $template->id,
+            'notaire_id'  => $request->notaryOffice,
+            'status'      => 'Non Payé',
+            'created_by'  => Auth::id(),
+        ]);
 
-        // Store attributes
-        foreach ($request['attributes'] ?? [] as $attributeData) {
+        // 3️⃣ Persist each attribute
+        foreach ($request->attributes ?? [] as $attr) {
             ContractAttributes::create([
                 'contract_id' => $contract->id,
-                'name' => $attributeData['name'],
-                'value' => $attributeData['value'],
+                'name'        => $attr['name'],
+                'value'       => $attr['value'],
             ]);
         }
 
-        // Link clients & buyers
+        // 4️⃣ Link clients & buyers
         foreach ($clients as $client) {
-            ContractClient::create(['contract_id' => $contract->id, 'client_id' => $client->id, 'etat'=>$request->clientType,'type'=>'PartA']);
+            ContractClient::create([
+                'contract_id' => $contract->id,
+                'client_id'   => $client->id,
+                'etat'        => $request->clientType,
+                'type'        => 'PartA',
+            ]);
         }
         foreach ($buyers as $buyer) {
-            ContractClient::create(['contract_id' => $contract->id, 'client_id' => $buyer->id, 'etat'=>$request->buyerType, 'type'=>'PartB']);
+            ContractClient::create([
+                'contract_id' => $contract->id,
+                'client_id'   => $buyer->id,
+                'etat'        => $request->buyerType,
+                'type'        => 'PartB',
+            ]);
         }
 
-        // Process the Word template
+        // 5️⃣ Paths for template copy & PDF
         $templatePath = storage_path("app/public/{$template->content}");
-        $uniqueId = uniqid();
-        $docxPath = storage_path("app/tmp_contract_{$uniqueId}.docx");
+        $uniqueId     = uniqid();
+        $docxPath     = storage_path("app/tmp_contract_{$uniqueId}.docx");
         $pdfOutputDir = storage_path("app/public/contracts");
-
-        // Ensure contracts directory exists
         Storage::disk('public')->makeDirectory('contracts');
+        $pdfFileName  = "contract_{$contract->id}_" . time() . ".pdf";
+        $pdfPath      = "{$pdfOutputDir}/{$pdfFileName}";
 
-        $pdfFileName = "contract_{$contract->id}_" . time() . ".pdf";
-        $pdfPath = "{$pdfOutputDir}/{$pdfFileName}";
+        // 6️⃣ Build replacements map: [ 'اسم_عميل_اول' => 'Youssouf', … ]
+        $replacements = [];
+        foreach ($request->input('attributes', []) as $attr) {
+            $replacements[$attr['name']] = $attr['value'];
+        }
+        // 6️⃣ Add notary office name replacment
 
-        // Initialize template processor
-        $processor = new TemplateProcessor($templatePath);
+        $notary = User::find($request->notaryOffice);
+        if ($notary) {
+            $notaryFullName = $notary->nom . ' ' . $notary->prenom;
+            $replacements['اسم_الموثق'] = $notaryFullName;
+        }
 
-        // Replace placeholders in the correct order
-        $processor = $this->replacePlaceholdersInTemplate($processor, $template, $clients, $request['attributes'], $buyers, $request->notaryOffice);
-        // Save the modified template
-        $processor->saveAs($docxPath);
+        // 6️⃣ Add gendered pronouns for Part A (clients), Part B (buyers), and both
+        $pronounPlaceholders = json_decode($template->part_a_transformations, true);
+        foreach ($pronounPlaceholders as $trans) {
+            $value = $this->determinePronounForm($trans, $clients);
+            $replacements[$trans['placeholder']] = $value;
+        }
 
-        // Convert to PDF
+        $pronounPlaceholders = json_decode($template->part_b_transformations, true);
+        foreach ($pronounPlaceholders as $trans) {
+            $value = $this->determinePronounForm($trans, $buyers);
+            $replacements[$trans['placeholder']] = $value;
+        }
+
+        $pronounPlaceholders = json_decode($template->part_all_transformations, true);
+        foreach ($pronounPlaceholders as $trans) {
+            $value = $this->determinePronounFormAll($trans, $clients, $buyers);
+            $replacements[$trans['placeholder']] = $value;
+        }
+        Log::info($replacements);
+        // 7️⃣ Inject bookmarks directly into the copied .docx
+        $this->injectBookmarks($templatePath, $docxPath, $replacements);
+
+        // 8️⃣ Convert to PDF via LibreOffice headless
         $libreOfficeBin = env('LIBREOFFICE_BIN');
-        $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir " .
-                escapeshellarg($pdfOutputDir) . ' ' . escapeshellarg($docxPath);
-        shell_exec($command . " 2>&1");
+        $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir "
+                . escapeshellarg($pdfOutputDir) . ' '
+                . escapeshellarg($docxPath)
+                . " 2>&1";
+        shell_exec($command);
 
-        // Handle the generated PDF
+        // 9️⃣ Move and record the generated PDF
         $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
         if (File::exists($generatedPdfPath)) {
             File::move($generatedPdfPath, $pdfPath);
+            $contract->update(['pdf_path' => "contracts/{$pdfFileName}"]);
         }
 
-        // Update contract with PDF path
-        $contract->pdf_path = "contracts/{$pdfFileName}";
-        $contract->save();
-
-        // Cleanup
+        // 1️⃣0️⃣ Cleanup
         File::delete($docxPath);
 
+        // 1️⃣1️⃣ Return success response
         return response()->json([
             'message' => 'Contrat créé avec succès!',
             'contract' => $contract,
-            'pdfUrl' => Storage::disk('public')->url("contracts/{$pdfFileName}")
+            'pdfUrl'   => Storage::disk('public')->url("contracts/{$pdfFileName}")
         ], 201);
-    }
-
-    protected function replacePlaceholdersInTemplate($processor, $template, $clients, $attributes, $buyers, $notaryOfficeId)
-    {
-        // 1. Replace notary office placeholders
-        $notary = User::find($notaryOfficeId);
-        if ($notary) {
-            $notaryName = $notary->nom . ' ' . $notary->prenom;
-            $this->setValueWithEncoding($processor, 'Notaire', $notaryName);
-        }
-
-        // 2. Replace attributes (variables)
-        foreach ($attributes as $attr) {
-            $this->setValueWithEncoding($processor, $attr['name'] , $attr['value']);
-        }
-
-        // 3. Replace gender-specific pronouns
-        $this->replaceArabicPronouns($processor, $template, $clients, $buyers);
-
-        // Return the modified processor
-        return $processor;
-    }
-
-    protected function replaceArabicPronouns($processor, $template, $clients, $buyers)
-    {
-        // Part A - clients (single angle brackets)
-        $partA = json_decode($template->part_a_transformations, true);
-        foreach ($partA as $trans) {
-            $value = $this->determinePronounForm($trans, $clients);
-            $this->setValueWithEncoding($processor, "A_{$trans['placeholder']}", $value);
-        }
-
-        // Part B - buyers (double angle brackets)
-        $partB = json_decode($template->part_b_transformations, true);
-        foreach ($partB as $trans) {
-            $value = $this->determinePronounForm($trans, $buyers);
-            $this->setValueWithEncoding($processor, "B_{$trans['placeholder']}", $value);
-        }
-
-        // All parties (triple angle brackets)
-        $partAll =  json_decode($template->part_all_transformations, true);
-        foreach ($partAll as $trans) {
-            $value = $this->determinePronounFormAll($trans, $clients, $buyers);
-            $this->setValueWithEncoding($processor,"All_{$trans['placeholder']}", $value);
-        }
-    }
-
-    protected function setValueWithEncoding($processor, $search, $replace)
-    {
-        try {
-            $processor->setValue($search, $replace);
-        } catch (\Exception $e) {
-            \Log::error("Replacement failed for placeholder: $search", ['error' => $e->getMessage()]);
-        }
-    }
-
-    protected function replacePlaceholder($processor, $search, $replace)
-    {
-        // Use reflection to access the protected 'tempDocument' property
-        $reflection = new \ReflectionClass($processor);
-        $property = $reflection->getProperty('tempDocument');
-        $property->setAccessible(true);
-        $document = $property->getValue($processor);
-
-        foreach ($document as $key => $part) {
-            $document[$key] = str_replace($search, $replace, $part);
-        }
-
-        $property->setValue($processor, $document);
-    }
-
-    protected function setValueWithRetry($processor, $search, $replace)
-    {
-        try {
-            // First try the normal way
-            $processor->setValue($search, $replace);
-        } catch (\Exception $e) {
-            // If that fails, try with HTML entities for Arabic characters
-            $searchEncoded = mb_convert_encoding($search, 'HTML-ENTITIES', 'UTF-8');
-            $replaceEncoded = mb_convert_encoding($replace, 'HTML-ENTITIES', 'UTF-8');
-            $processor->setValue($searchEncoded, $replaceEncoded);
-        }
     }
 
     protected function determinePronounForm($transformation, $users)
@@ -300,6 +258,82 @@ class ContractController extends Controller
             // Mixed group - in Arabic, masculine plural is used for mixed groups
             return $transformation['malepluralForm'];
         }
+    }
+
+    protected function injectBookmarks($sourceDocx, $targetDocx, array $replacements)
+    {
+        copy($sourceDocx, $targetDocx);
+        $zip = new \ZipArchive();
+        if ($zip->open($targetDocx) !== true) {
+            throw new \Exception("Cannot open DOCX");
+        }
+
+        $xml = $zip->getFromName('word/document.xml');
+        $dom = new \DOMDocument();
+        $dom->preserveWhiteSpace = false;
+        $dom->loadXML($xml);
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('w','http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        foreach ($replacements as $name => $value) {
+            $starts = $xpath->query("//w:bookmarkStart[@w:name='$name']");
+            foreach ($starts as $bmStart) {
+                $bmId = $bmStart->getAttribute('w:id');
+
+                // --- find the first run after the bookmarkStart to copy its formatting
+                $formatRun = null;
+                $node = $bmStart->nextSibling;
+                while ($node) {
+                    if ($node->nodeName === 'w:r') {
+                        $formatRun = $node;
+                        break;
+                    }
+                    $node = $node->nextSibling;
+                }
+
+                // --- now remove everything up to the bookmarkEnd
+                $toRemove = [];
+                $node = $bmStart->nextSibling;
+                while ($node) {
+                    if ($node->nodeName === 'w:bookmarkEnd'
+                        && $node->getAttribute('w:id') === $bmId) {
+                        $bmEnd = $node;
+                        break;
+                    }
+                    $toRemove[] = $node;
+                    $node = $node->nextSibling;
+                }
+                foreach ($toRemove as $rem) {
+                    $bmStart->parentNode->removeChild($rem);
+                }
+
+                // --- create a new run, copy formatting if available
+                $wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+                $newR = $dom->createElementNS($wNs, 'w:r');
+
+                if ($formatRun) {
+                    // clone its <w:rPr> (the first if >1)
+                    $rPr = $xpath->query('.//w:rPr', $formatRun)->item(0);
+                    if ($rPr) {
+                        $rPrClone = $rPr->cloneNode(true);
+                        $newR->appendChild($rPrClone);
+                    }
+                }
+
+                // add your text
+                $newT = $dom->createElementNS($wNs, 'w:t', htmlspecialchars($value));
+                // preserve spaces exactly
+                $newT->setAttribute('xml:space', 'preserve');
+                $newR->appendChild($newT);
+
+                // insert before bookmarkEnd
+                $bmStart->parentNode->insertBefore($newR, $bmEnd);
+            }
+        }
+
+        // save back
+        $zip->addFromString('word/document.xml', $dom->saveXML());
+        $zip->close();
     }
 
 
@@ -415,7 +449,8 @@ class ContractController extends Controller
             $libreOfficeBin = env('LIBREOFFICE_BIN');
             $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir " .
                     escapeshellarg($pdfOutputDir) . ' ' . escapeshellarg($docxPath);
-            shell_exec($command . " 2>&1");
+            $output = shell_exec($command . " 2>&1");
+            \Log::error("LibreOffice conversion output: " . $output);
 
             // Handle the generated PDF
             $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";

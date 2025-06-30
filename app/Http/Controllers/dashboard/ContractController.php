@@ -278,84 +278,92 @@ class ContractController extends Controller
 
     protected function injectBookmarks($sourceDocx, $targetDocx, array $replacements)
     {
-        copy($sourceDocx, $targetDocx);
-        $zip = new \ZipArchive();
-        if ($zip->open($targetDocx) !== true) {
-            throw new \Exception("Cannot open DOCX");
-        }
-
-        $xml = $zip->getFromName('word/document.xml');
-        // Debug: log every bookmark name found in the document
-        $allBm = $xpath->query('//w:bookmarkStart');
-        foreach ($allBm as $bm) {
-            \Log::info('Found bookmark in DOCX: ' . $bm->getAttribute('w:name'));
-        }
-
-        $dom = new \DOMDocument();
-        $dom->preserveWhiteSpace = false;
-        $dom->loadXML($xml);
-        $xpath = new \DOMXPath($dom);
-        $xpath->registerNamespace('w','http://schemas.openxmlformats.org/wordprocessingml/2006/main');
-
-        foreach ($replacements as $name => $value) {
-            $starts = $xpath->query("//w:bookmarkStart[@w:name='$name']");
-            foreach ($starts as $bmStart) {
-                $bmId = $bmStart->getAttribute('w:id');
-
-                // --- find the first run after the bookmarkStart to copy its formatting
-                $formatRun = null;
-                $node = $bmStart->nextSibling;
-                while ($node) {
-                    if ($node->nodeName === 'w:r') {
-                        $formatRun = $node;
-                        break;
-                    }
-                    $node = $node->nextSibling;
-                }
-
-                // --- now remove everything up to the bookmarkEnd
-                $toRemove = [];
-                $node = $bmStart->nextSibling;
-                while ($node) {
-                    if ($node->nodeName === 'w:bookmarkEnd'
-                        && $node->getAttribute('w:id') === $bmId) {
-                        $bmEnd = $node;
-                        break;
-                    }
-                    $toRemove[] = $node;
-                    $node = $node->nextSibling;
-                }
-                foreach ($toRemove as $rem) {
-                    $bmStart->parentNode->removeChild($rem);
-                }
-
-                // --- create a new run, copy formatting if available
-                $wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-                $newR = $dom->createElementNS($wNs, 'w:r');
-
-                if ($formatRun) {
-                    // clone its <w:rPr> (the first if >1)
-                    $rPr = $xpath->query('.//w:rPr', $formatRun)->item(0);
-                    if ($rPr) {
-                        $rPrClone = $rPr->cloneNode(true);
-                        $newR->appendChild($rPrClone);
-                    }
-                }
-
-                // add your text
-                $newT = $dom->createElementNS($wNs, 'w:t', htmlspecialchars($value));
-                // preserve spaces exactly
-                $newT->setAttribute('xml:space', 'preserve');
-                $newR->appendChild($newT);
-
-                // insert before bookmarkEnd
-                $bmStart->parentNode->insertBefore($newR, $bmEnd);
+        try{
+            copy($sourceDocx, $targetDocx);
+            $zip = new \ZipArchive();
+            if ($zip->open($targetDocx) !== true) {
+                throw new \Exception("Cannot open DOCX");
             }
-        }
 
-        // save back
-        $zip->addFromString('word/document.xml', $dom->saveXML());
-        $zip->close();
+            $xml = $zip->getFromName('word/document.xml');
+            // Debug: log every bookmark name found in the document
+            $allBm = $xpath->query('//w:bookmarkStart');
+            foreach ($allBm as $bm) {
+                \Log::info('Found bookmark in DOCX: ' . $bm->getAttribute('w:name'));
+            }
+
+            $dom = new \DOMDocument();
+            $dom->preserveWhiteSpace = false;
+            $dom->loadXML($xml);
+            $xpath = new \DOMXPath($dom);
+            $xpath->registerNamespace('w','http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+            foreach ($replacements as $name => $value) {
+                $starts = $xpath->query("//w:bookmarkStart[@w:name='$name']");
+                foreach ($starts as $bmStart) {
+                    $bmId = $bmStart->getAttribute('w:id');
+
+                    // --- find the first run after the bookmarkStart to copy its formatting
+                    $formatRun = null;
+                    $node = $bmStart->nextSibling;
+                    while ($node) {
+                        if ($node->nodeName === 'w:r') {
+                            $formatRun = $node;
+                            break;
+                        }
+                        $node = $node->nextSibling;
+                    }
+
+                    // --- now remove everything up to the bookmarkEnd
+                    $toRemove = [];
+                    $node = $bmStart->nextSibling;
+                    while ($node) {
+                        if ($node->nodeName === 'w:bookmarkEnd'
+                            && $node->getAttribute('w:id') === $bmId) {
+                            $bmEnd = $node;
+                            break;
+                        }
+                        $toRemove[] = $node;
+                        $node = $node->nextSibling;
+                    }
+                    foreach ($toRemove as $rem) {
+                        $bmStart->parentNode->removeChild($rem);
+                    }
+
+                    // --- create a new run, copy formatting if available
+                    $wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+                    $newR = $dom->createElementNS($wNs, 'w:r');
+
+                    if ($formatRun) {
+                        // clone its <w:rPr> (the first if >1)
+                        $rPr = $xpath->query('.//w:rPr', $formatRun)->item(0);
+                        if ($rPr) {
+                            $rPrClone = $rPr->cloneNode(true);
+                            $newR->appendChild($rPrClone);
+                        }
+                    }
+
+                    // add your text
+                    $newT = $dom->createElementNS($wNs, 'w:t', htmlspecialchars($value));
+                    // preserve spaces exactly
+                    $newT->setAttribute('xml:space', 'preserve');
+                    $newR->appendChild($newT);
+
+                    // insert before bookmarkEnd
+                    $bmStart->parentNode->insertBefore($newR, $bmEnd);
+                }
+            }
+
+            // save back
+            $zip->addFromString('word/document.xml', $dom->saveXML());
+            $zip->close();
+        }catch (\Error $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch(\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
     }
 
 

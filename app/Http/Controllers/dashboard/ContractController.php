@@ -190,13 +190,22 @@ class ContractController extends Controller
                 . escapeshellarg($pdfOutputDir) . ' '
                 . escapeshellarg($docxPath)
                 . " 2>&1";
-        shell_exec($command);
+        $output = shell_exec($command);
+        \Log::info("LibreOffice Output: " . $output);
 
         // 9️⃣ Move and record the generated PDF
         $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
         if (File::exists($generatedPdfPath)) {
             File::move($generatedPdfPath, $pdfPath);
             $contract->update(['pdf_path' => "contracts/{$pdfFileName}"]);
+            \Log::info("PDF moved successfully to: " . $pdfPath);
+        } else {
+            \Log::error("PDF not found at expected path: " . $generatedPdfPath);
+            return response()->json([
+                'message' => 'Erreur : PDF introuvable après la génération.',
+                'commandOutput' => $output,
+                'pathTried' => $generatedPdfPath,
+            ], 500);
         }
 
         // 1️⃣0️⃣ Cleanup

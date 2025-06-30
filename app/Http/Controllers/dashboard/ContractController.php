@@ -460,6 +460,12 @@ class ContractController extends Controller
                     Storage::disk('public')->delete($contract->pdf_path);
                 }
                 File::move($generatedPdfPath, $pdfPath);
+            }else {
+                \Log::error('Le fichier PDF généré est introuvable à : ' . $generatedPdfPath);
+                return response()->json([
+                    'message' => 'Erreur : le fichier PDF n’a pas été généré correctement.',
+                    'debugPath' => $generatedPdfPath
+                ], 500);
             }
 
             // Update contract with new PDF path

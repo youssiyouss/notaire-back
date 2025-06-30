@@ -100,114 +100,130 @@ class ContractController extends Controller
      */
     public function store(Request $request)
     {
-        // 1️⃣ Load template & parties
-        $template = ContractTemplate::find($request->contractType);
-        $clients  = User::whereIn('id', array_column($request->clients, 'id'))->get();
-        $buyers   = User::whereIn('id', array_column($request->buyers, 'id'))->get();
+        try{
+            // 1️⃣ Load template & parties
+            $template = ContractTemplate::find($request->contractType);
+            $clients  = User::whereIn('id', array_column($request->clients, 'id'))->get();
+            $buyers   = User::whereIn('id', array_column($request->buyers, 'id'))->get();
 
-        // 2️⃣ Create the Contract record
-        $contract = Contract::create([
-            'template_id' => $template->id,
-            'notaire_id'  => $request->notaryOffice,
-            'status'      => 'Non Payé',
-            'created_by'  => Auth::id(),
-        ]);
-
-        // 3️⃣ Persist each attribute
-        foreach ($request->attributes ?? [] as $attr) {
-            ContractAttributes::create([
-                'contract_id' => $contract->id,
-                'name'        => $attr['name'],
-                'value'       => $attr['value'],
+            // 2️⃣ Create the Contract record
+            $contract = Contract::create([
+                'template_id' => $template->id,
+                'notaire_id'  => $request->notaryOffice,
+                'status'      => 'Non Payé',
+                'created_by'  => Auth::id(),
             ]);
-        }
 
-        // 4️⃣ Link clients & buyers
-        foreach ($clients as $client) {
-            ContractClient::create([
-                'contract_id' => $contract->id,
-                'client_id'   => $client->id,
-                'etat'        => $request->clientType,
-                'type'        => 'PartA',
+            // 3️⃣ Persist each attribute
+            foreach ($request->attributes ?? [] as $attr) {
+                ContractAttributes::create([
+                    'contract_id' => $contract->id,
+                    'name'        => $attr['name'],
+                    'value'       => $attr['value'],
+                ]);
+            }
+
+            // 4️⃣ Link clients & buyers
+            foreach ($clients as $client) {
+                ContractClient::create([
+                    'contract_id' => $contract->id,
+                    'client_id'   => $client->id,
+                    'etat'        => $request->clientType,
+                    'type'        => 'PartA',
+                ]);
+            }
+            foreach ($buyers as $buyer) {
+                ContractClient::create([
+                    'contract_id' => $contract->id,
+                    'client_id'   => $buyer->id,
+                    'etat'        => $request->buyerType,
+                    'type'        => 'PartB',
+                ]);
+            }
+            $start = microtime(true);
+
+
+            // 5️⃣ Paths for template copy & PDF
+            $templatePath = storage_path("app/public/{$template->content}");
+            $uniqueId     = uniqid();
+            $docxPath     = storage_path("app/tmp_contract_{$uniqueId}.docx");
+            $pdfOutputDir = storage_path("app/public/contracts");
+            Storage::disk('public')->makeDirectory('contracts');
+            $pdfFileName  = "contract_{$contract->id}_" . time() . ".pdf";
+            $pdfPath      = "{$pdfOutputDir}/{$pdfFileName}";
+
+            // 6️⃣ Build replacements map: [ 'اسم_عميل_اول' => 'Youssouf', … ]
+            $replacements = [];
+            foreach ($request->input('attributes', []) as $attr) {
+                $replacements[$attr['name']] = $attr['value'];
+            }
+            // 6️⃣ Add notary office name replacment
+
+            $notary = User::find($request->notaryOffice);
+            if ($notary) {
+                $notaryFullName = $notary->nom . ' ' . $notary->prenom;
+                $replacements['اسم_الموثق'] = $notaryFullName;
+            }
+
+            // 6️⃣ Add gendered pronouns for Part A (clients), Part B (buyers), and both
+            $pronounPlaceholders = json_decode($template->part_a_transformations, true);
+            foreach ($pronounPlaceholders as $trans) {
+                $value = $this->determinePronounForm($trans, $clients);
+                $replacements[$trans['placeholder']] = $value;
+            }
+
+            $pronounPlaceholders = json_decode($template->part_b_transformations, true);
+            foreach ($pronounPlaceholders as $trans) {
+                $value = $this->determinePronounForm($trans, $buyers);
+                $replacements[$trans['placeholder']] = $value;
+            }
+
+            $pronounPlaceholders = json_decode($template->part_all_transformations, true);
+            foreach ($pronounPlaceholders as $trans) {
+                $value = $this->determinePronounFormAll($trans, $clients, $buyers);
+                $replacements[$trans['placeholder']] = $value;
+            }
+            Log::info($replacements);
+            // 7️⃣ Inject bookmarks directly into the copied .docx
+            $this->injectBookmarks($templatePath, $docxPath, $replacements);
+
+            // 8️⃣ Convert to PDF via LibreOffice headless
+            $libreOfficeBin = env('LIBREOFFICE_BIN');
+            $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir "
+                    . escapeshellarg($pdfOutputDir) . ' '
+                    . escapeshellarg($docxPath)
+                    . " 2>&1";
+            shell_exec($command);
+
+            // 9️⃣ Move and record the generated PDF
+            $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
+            if (File::exists($generatedPdfPath)) {
+                File::move($generatedPdfPath, $pdfPath);
+                $contract->update(['pdf_path' => "contracts/{$pdfFileName}"]);
+            }
+            $end = microtime(true);
+            \Log::info('Contract generation duration: ' . ($end - $start) . ' seconds');
+            // 1️⃣0️⃣ Cleanup
+            File::delete($docxPath);
+
+            // 1️⃣1️⃣ Return success response
+            return response()->json([
+                'message' => 'Contrat créé avec succès!',
+                'contract' => $contract,
+                'pdfUrl'   => Storage::disk('public')->url("contracts/{$pdfFileName}")
+            ], 201);
+        } catch (\Throwable $e) {
+            \Log::error('Contract generation failed: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
+
+            return response()->json([
+                'message' => 'Une erreur est survenue lors de la création du contrat.',
+                'error' => $e->getMessage()
+            ], 500);
         }
-        foreach ($buyers as $buyer) {
-            ContractClient::create([
-                'contract_id' => $contract->id,
-                'client_id'   => $buyer->id,
-                'etat'        => $request->buyerType,
-                'type'        => 'PartB',
-            ]);
-        }
-
-        // 5️⃣ Paths for template copy & PDF
-        $templatePath = storage_path("app/public/{$template->content}");
-        $uniqueId     = uniqid();
-        $docxPath     = storage_path("app/tmp_contract_{$uniqueId}.docx");
-        $pdfOutputDir = storage_path("app/public/contracts");
-        Storage::disk('public')->makeDirectory('contracts');
-        $pdfFileName  = "contract_{$contract->id}_" . time() . ".pdf";
-        $pdfPath      = "{$pdfOutputDir}/{$pdfFileName}";
-
-        // 6️⃣ Build replacements map: [ 'اسم_عميل_اول' => 'Youssouf', … ]
-        $replacements = [];
-        foreach ($request->input('attributes', []) as $attr) {
-            $replacements[$attr['name']] = $attr['value'];
-        }
-        // 6️⃣ Add notary office name replacment
-
-        $notary = User::find($request->notaryOffice);
-        if ($notary) {
-            $notaryFullName = $notary->nom . ' ' . $notary->prenom;
-            $replacements['اسم_الموثق'] = $notaryFullName;
-        }
-
-        // 6️⃣ Add gendered pronouns for Part A (clients), Part B (buyers), and both
-        $pronounPlaceholders = json_decode($template->part_a_transformations, true);
-        foreach ($pronounPlaceholders as $trans) {
-            $value = $this->determinePronounForm($trans, $clients);
-            $replacements[$trans['placeholder']] = $value;
-        }
-
-        $pronounPlaceholders = json_decode($template->part_b_transformations, true);
-        foreach ($pronounPlaceholders as $trans) {
-            $value = $this->determinePronounForm($trans, $buyers);
-            $replacements[$trans['placeholder']] = $value;
-        }
-
-        $pronounPlaceholders = json_decode($template->part_all_transformations, true);
-        foreach ($pronounPlaceholders as $trans) {
-            $value = $this->determinePronounFormAll($trans, $clients, $buyers);
-            $replacements[$trans['placeholder']] = $value;
-        }
-        Log::info($replacements);
-        // 7️⃣ Inject bookmarks directly into the copied .docx
-        $this->injectBookmarks($templatePath, $docxPath, $replacements);
-
-        // 8️⃣ Convert to PDF via LibreOffice headless
-        $libreOfficeBin = env('LIBREOFFICE_BIN');
-        $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir "
-                . escapeshellarg($pdfOutputDir) . ' '
-                . escapeshellarg($docxPath)
-                . " 2>&1";
-        shell_exec($command);
-
-        // 9️⃣ Move and record the generated PDF
-        $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
-        if (File::exists($generatedPdfPath)) {
-            File::move($generatedPdfPath, $pdfPath);
-            $contract->update(['pdf_path' => "contracts/{$pdfFileName}"]);
-        }
-
-        // 1️⃣0️⃣ Cleanup
-        File::delete($docxPath);
-
-        // 1️⃣1️⃣ Return success response
-        return response()->json([
-            'message' => 'Contrat créé avec succès!',
-            'contract' => $contract,
-            'pdfUrl'   => Storage::disk('public')->url("contracts/{$pdfFileName}")
-        ], 201);
     }
 
     protected function determinePronounForm($transformation, $users)

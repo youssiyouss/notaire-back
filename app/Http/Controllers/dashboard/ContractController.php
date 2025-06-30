@@ -285,6 +285,12 @@ class ContractController extends Controller
         }
 
         $xml = $zip->getFromName('word/document.xml');
+        // Debug: log every bookmark name found in the document
+        $allBm = $xpath->query('//w:bookmarkStart');
+        foreach ($allBm as $bm) {
+            \Log::info('Found bookmark in DOCX: ' . $bm->getAttribute('w:name'));
+        }
+
         $dom = new \DOMDocument();
         $dom->preserveWhiteSpace = false;
         $dom->loadXML($xml);
@@ -431,7 +437,7 @@ class ContractController extends Controller
                 'type' => 'PartB'
             ]);
         }
-
+/*
         // Only regenerate PDF if template or attributes changed
         if ($this->shouldRegeneratePdf($contract, $request)) {
             $templatePath = storage_path("app/public/{$template->content}");
@@ -457,7 +463,6 @@ class ContractController extends Controller
                 $buyers,
                 $request->notaryOffice
             );
-
             // Save the modified template
             $processor->saveAs($docxPath);
 
@@ -485,6 +490,7 @@ class ContractController extends Controller
             // Cleanup
             File::delete($docxPath);
         }
+        */
 
         return response()->json([
             'message' => 'Contrat mis à jour avec succès!',

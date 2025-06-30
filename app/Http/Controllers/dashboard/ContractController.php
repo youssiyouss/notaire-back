@@ -193,7 +193,7 @@ class ContractController extends Controller
                     . escapeshellarg($pdfOutputDir) . ' '
                     . escapeshellarg($docxPath)
                     . " 2>&1";
-            shell_exec($command);
+           // shell_exec($command);
 
             // 9️⃣ Move and record the generated PDF
             $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
@@ -286,17 +286,19 @@ class ContractController extends Controller
             }
 
             $xml = $zip->getFromName('word/document.xml');
-            // Debug: log every bookmark name found in the document
-            $allBm = $xpath->query('//w:bookmarkStart');
-            foreach ($allBm as $bm) {
-                \Log::info('Found bookmark in DOCX: ' . $bm->getAttribute('w:name'));
-            }
+
 
             $dom = new \DOMDocument();
             $dom->preserveWhiteSpace = false;
             $dom->loadXML($xml);
             $xpath = new \DOMXPath($dom);
             $xpath->registerNamespace('w','http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+            // Debug: log every bookmark name found in the document
+            $allBm = $xpath->query('//w:bookmarkStart');
+            foreach ($allBm as $bm) {
+                \Log::info('Found bookmark in DOCX: ' . $bm->getAttribute('w:name'));
+            }
 
             foreach ($replacements as $name => $value) {
                 $starts = $xpath->query("//w:bookmarkStart[@w:name='$name']");

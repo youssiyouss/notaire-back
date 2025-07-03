@@ -3,13 +3,17 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Contract extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'template_id', 'content','receiptPath','price' ,'notaire_id', 'status','pdf_path','word_path','created_by', 'updated_by'
     ];
 
+    protected $dates = ['deleted_at'];
 
     public function template() {
         return $this->belongsTo(ContractTemplate::class);

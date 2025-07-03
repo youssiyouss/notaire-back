@@ -140,21 +140,24 @@ class ContractController extends Controller
             ]);
         }
 
-        // 5️⃣ Paths for template copy & PDF
+        // 5️⃣ Paths
+        Storage::disk('public')->makeDirectory('contracts/pdf');
+        Storage::disk('public')->makeDirectory('contracts/word');
+
         $templatePath = storage_path("app/public/{$template->content}");
         $uniqueId     = uniqid();
-        $docxPath     = storage_path("app/tmp_contract_{$uniqueId}.docx");
-        $pdfOutputDir = storage_path("app/public/contracts");
-        Storage::disk('public')->makeDirectory('contracts');
+        $tempDocxPath = storage_path("app/tmp_contract_{$uniqueId}.docx"); // ✅ temp path
         $pdfFileName  = "contract_{$contract->id}_" . time() . ".pdf";
-        $pdfPath      = "{$pdfOutputDir}/{$pdfFileName}";
+        $docxFileName = "contract_{$contract->id}_" . time() . ".docx";
 
-        // 6️⃣ Build replacements map: [ 'اسم_عميل_اول' => 'Youssouf', … ]
+        $pdfFinalPath  = storage_path("app/public/contracts/pdf/{$pdfFileName}");  // ✅ final PDF
+        $docxFinalPath = storage_path("app/public/contracts/word/{$docxFileName}"); // ✅ final DOCX
+
+        // 6️⃣ Replacements
         $replacements = [];
         foreach ($request->input('attributes', []) as $attr) {
             $replacements[$attr['name']] = $attr['value'];
         }
-        // 6️⃣ Add notary office name replacment
 
         $notary = User::find($request->notaryOffice);
         if ($notary) {
@@ -162,7 +165,6 @@ class ContractController extends Controller
             $replacements['اسم_الموثق'] = $notaryFullName;
         }
 
-        // 6️⃣ Add gendered pronouns for Part A (clients), Part B (buyers), and both
         $pronounPlaceholders = json_decode($template->part_a_transformations, true);
         foreach ($pronounPlaceholders as $trans) {
             $value = $this->determinePronounForm($trans, $clients);
@@ -180,25 +182,32 @@ class ContractController extends Controller
             $value = $this->determinePronounFormAll($trans, $clients, $buyers);
             $replacements[$trans['placeholder']] = $value;
         }
-        Log::info($replacements);
-        // 7️⃣ Inject bookmarks directly into the copied .docx
-        $this->injectBookmarks($templatePath, $docxPath, $replacements);
 
-        // 8️⃣ Convert to PDF via LibreOffice headless
+        // 7️⃣ Inject into temporary .docx
+        $this->injectBookmarks($templatePath, $tempDocxPath, $replacements);
+
+        // 🆕 Save permanent .docx
+        File::copy($tempDocxPath, $docxFinalPath);
+        $contract->update([
+            'word_path'  => "contracts/word/{$docxFileName}"
+        ]);
+        // 8️⃣ Convert to PDF via LibreOffice
         $libreOfficeBin = env('LIBREOFFICE_BIN');
         $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir "
-                . escapeshellarg($pdfOutputDir) . ' '
-                . escapeshellarg($docxPath)
+                . escapeshellarg(storage_path("app/public/contracts/pdf")) . ' '
+                . escapeshellarg($tempDocxPath)
                 . " 2>&1";
         $output = shell_exec($command);
         \Log::info("LibreOffice Output: " . $output);
 
-        // 9️⃣ Move and record the generated PDF
-        $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
+        // 9️⃣ Verify PDF exists and update DB
+        $generatedPdfPath = storage_path("app/public/contracts/pdf/") . pathinfo($tempDocxPath, PATHINFO_FILENAME) . ".pdf";
         if (File::exists($generatedPdfPath)) {
-            File::move($generatedPdfPath, $pdfPath);
-            $contract->update(['pdf_path' => "contracts/{$pdfFileName}"]);
-            \Log::info("PDF moved successfully to: " . $pdfPath);
+            File::move($generatedPdfPath, $pdfFinalPath);
+            $contract->update([
+                'pdf_path'  => "contracts/pdf/{$pdfFileName}"
+            ]);
+            \Log::info("PDF moved successfully to: " . $pdfFinalPath);
         } else {
             \Log::error("PDF not found at expected path: " . $generatedPdfPath);
             return response()->json([
@@ -208,16 +217,16 @@ class ContractController extends Controller
             ], 500);
         }
 
-        // 1️⃣0️⃣ Cleanup
-        File::delete($docxPath);
+        // 🔟 Cleanup temp file
+        File::delete($tempDocxPath);
 
-        // 1️⃣1️⃣ Return success response
+        // 🔁 Return response
         return response()->json([
-            'message' => 'Contrat créé avec succès!',
-            'contract' => $contract,
-            'pdfUrl'   => Storage::disk('public')->url("contracts/{$pdfFileName}")
+            'message'   => 'Contrat créé avec succès!',
+            'contract'  => $contract
         ], 201);
     }
+
 
     protected function determinePronounForm($transformation, $users)
     {

@@ -14,8 +14,9 @@ return new class extends Migration
         Schema::create('template_attributes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('contract_id')->constrained()->cascadeOnDelete(); // Links to a contract
-            $table->string('name'); // Attribute name (e.g., "المساحة")
-            $table->string('value'); // Client-specific value (e.g., "100m²")
+            $table->string('name');
+            $table->string('value');
+            $table->string('matching_attribute');
             $table->timestamps();
         });
     }

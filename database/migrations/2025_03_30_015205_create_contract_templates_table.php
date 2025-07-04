@@ -21,12 +21,30 @@ return new class extends Migration
             $table->json('part_b_transformations');
             $table->json('part_all_transformations');
             $table->string('taxe_type');
-            $table->number('taxe_pourcentage');
+            $table->decimal('taxe_pourcentage', 10, 2);
+
+            $table->decimal('original', 10, 2)->nullable();
+            $table->decimal('copy', 10, 2)->nullable();
+            $table->decimal('documentation', 10, 2)->nullable();
+            $table->decimal('publication', 10, 2)->nullable();
+            $table->decimal('consultation', 10, 2)->nullable();
+            $table->decimal('consultationFee', 10, 2)->nullable();
+            $table->decimal('workFee', 10, 2)->nullable();
+            $table->decimal('others', 10, 2)->nullable();
+            $table->decimal('stamp', 10, 2)->nullable();
+            $table->decimal('registration', 10, 2)->nullable();
+            $table->decimal('advertisement', 10, 2)->nullable();
+            $table->decimal('rkm', 10, 2)->nullable();
+            $table->decimal('announcements', 10, 2)->nullable();
+            $table->decimal('deposit', 10, 2)->nullable();
+            $table->decimal('boal', 10, 2)->nullable();
+            $table->decimal('registration_or_cancellation', 10, 2)->nullable();
+
             $table->foreignId('created_by')->nullable();
             $table->foreignId('updated_by')->nullable();
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
             $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
-
+            $table->softDeletes();
             $table->timestamps();
         });
     }

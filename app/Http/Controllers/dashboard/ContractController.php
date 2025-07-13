@@ -8,7 +8,10 @@ use App\Models\ContractTemplate;
 use App\Models\ContractAttributes;
 use App\Models\Client;
 use App\Models\User;
+use App\Models\Attribute;
+use App\Models\AttributeValues;
 use App\Models\ContractClient;
+use App\Models\TemplateGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
@@ -100,11 +103,8 @@ class ContractController extends Controller
      */
     public function store(Request $request)
     {
-        // 1️⃣ Load template & parties
+        // 1️⃣ Load template
         $template = ContractTemplate::find($request->contractType);
-        $clients  = User::whereIn('id', array_column($request->clients, 'id'))->get();
-        $buyers   = User::whereIn('id', array_column($request->buyers, 'id'))->get();
-
         // 2️⃣ Create the Contract record
         $contract = Contract::create([
             'template_id' => $template->id,
@@ -114,29 +114,26 @@ class ContractController extends Controller
         ]);
 
         // 3️⃣ Persist each attribute
-        foreach ($request->attributes ?? [] as $attr) {
-            ContractAttributes::create([
-                'contract_id' => $contract->id,
-                'name'        => $attr['name'],
-                'value'       => $attr['value'],
-            ]);
+        foreach ($request->groups as $group) {
+            foreach ($group['attributes'] as $attr) {
+                $attributeModel = Attribute::where('attribute_name', $attr['name'])->where('group_id', $group['group_id'])->first();
+
+                if ($attributeModel) {
+                    AttributeValues::create([
+                        'contract_id'  => $contract->id,
+                        'attribute_id' => $attributeModel->id,
+                        'value'        => $attr['value'],
+                    ]);
+                }
+            }
         }
 
         // 4️⃣ Link clients & buyers
-        foreach ($clients as $client) {
+        foreach ($group['users'] as $user) {
             ContractClient::create([
                 'contract_id' => $contract->id,
-                'client_id'   => $client->id,
-                'etat'        => $request->clientType,
-                'type'        => 'PartA',
-            ]);
-        }
-        foreach ($buyers as $buyer) {
-            ContractClient::create([
-                'contract_id' => $contract->id,
-                'client_id'   => $buyer->id,
-                'etat'        => $request->buyerType,
-                'type'        => 'PartB',
+                'client_id'   => $user['id'],
+                'type' => $group['group_name'], // Optional: distinguish group members
             ]);
         }
 
@@ -155,8 +152,20 @@ class ContractController extends Controller
 
         // 6️⃣ Replacements
         $replacements = [];
-        foreach ($request->input('attributes', []) as $attr) {
-            $replacements[$attr['name']] = $attr['value'];
+        foreach ($request->groups as $group) {
+            foreach ($group['attributes'] as $attr) {
+                $replacements[$attr['name']] = $attr['value'];
+            }
+
+            // 🔁 Récupérer le modèle du groupe depuis la base
+            $groupModel = TemplateGroup::with('wordTransformations')->find($group['group_id']);
+
+            if ($groupModel && $groupModel->wordTransformations) {
+                foreach ($groupModel->wordTransformations as $trans) {
+                    $value = $this->determinePronounForm($trans, $group['users']);
+                    $replacements[$trans->placeholder] = $value;
+                }
+            }
         }
 
         $notary = User::find($request->notaryOffice);
@@ -165,23 +174,6 @@ class ContractController extends Controller
             $replacements['اسم_الموثق'] = $notaryFullName;
         }
 
-        $pronounPlaceholders = json_decode($template->part_a_transformations, true);
-        foreach ($pronounPlaceholders as $trans) {
-            $value = $this->determinePronounForm($trans, $clients);
-            $replacements[$trans['placeholder']] = $value;
-        }
-
-        $pronounPlaceholders = json_decode($template->part_b_transformations, true);
-        foreach ($pronounPlaceholders as $trans) {
-            $value = $this->determinePronounForm($trans, $buyers);
-            $replacements[$trans['placeholder']] = $value;
-        }
-
-        $pronounPlaceholders = json_decode($template->part_all_transformations, true);
-        foreach ($pronounPlaceholders as $trans) {
-            $value = $this->determinePronounFormAll($trans, $clients, $buyers);
-            $replacements[$trans['placeholder']] = $value;
-        }
 
         // 7️⃣ Inject into temporary .docx
         $this->injectBookmarks($templatePath, $tempDocxPath, $replacements);
@@ -198,7 +190,6 @@ class ContractController extends Controller
                 . escapeshellarg($tempDocxPath)
                 . " 2>&1";
         $output = shell_exec($command);
-        \Log::info("LibreOffice Output: " . $output);
 
         // 9️⃣ Verify PDF exists and update DB
         $generatedPdfPath = storage_path("app/public/contracts/pdf/") . pathinfo($tempDocxPath, PATHINFO_FILENAME) . ".pdf";
@@ -207,7 +198,6 @@ class ContractController extends Controller
             $contract->update([
                 'pdf_path'  => "contracts/pdf/{$pdfFileName}"
             ]);
-            \Log::info("PDF moved successfully to: " . $pdfFinalPath);
         } else {
             \Log::error("PDF not found at expected path: " . $generatedPdfPath);
             return response()->json([
@@ -227,15 +217,13 @@ class ContractController extends Controller
         ], 201);
     }
 
-
     protected function determinePronounForm($transformation, $users)
     {
         $maleCount = 0;
         $femaleCount = 0;
 
         foreach ($users as $user) {
-            // Make case-insensitive comparison
-            if (strtolower($user->sexe) === 'male') {
+            if (strtolower($user['sexe']) === 'male') {
                 $maleCount++;
             } else {
                 $femaleCount++;
@@ -243,43 +231,19 @@ class ContractController extends Controller
         }
 
         if ($maleCount > 0 && $femaleCount === 0) {
-            return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
+            return $maleCount > 1 ? $transformation->masculine_plural : $transformation->masculine;
         } elseif ($femaleCount > 0 && $maleCount === 0) {
-            return $femaleCount > 1 ? $transformation['femalepluralForm'] : $transformation['femaleForm'];
+            return $femaleCount > 1 ? $transformation->feminine_plural : $transformation->feminine;
         } else {
-            return $transformation['malepluralForm'];
+            return $transformation->masculine_plural;
         }
     }
 
-    protected function determinePronounFormAll($transformation, $clients, $buyers)
-    {
-        // Count genders among all parties
-        $maleCount = 0;
-        $femaleCount = 0;
 
-        foreach ($clients as $client) {
-            $client->sexe === 'male' ? $maleCount++ : $femaleCount++;
-        }
-
-        foreach ($buyers as $buyer) {
-            $buyer->sexe === 'male' ? $maleCount++ : $femaleCount++;
-        }
-
-        // Determine which form to use based on Arabic grammar rules
-        if ($maleCount > 0 && $femaleCount === 0) {
-            // All male
-            return $maleCount > 1 ? $transformation['malepluralForm'] : $transformation['maleForm'];
-        } elseif ($femaleCount > 0 && $maleCount === 0) {
-            // All female
-            return $femaleCount > 1 ? $transformation['femalepluralForm'] : $transformation['femaleForm'];
-        } else {
-            // Mixed group - in Arabic, masculine plural is used for mixed groups
-            return $transformation['malepluralForm'];
-        }
-    }
 
     protected function injectBookmarks($sourceDocx, $targetDocx, array $replacements)
     {
+        Log::info($replacements);
         copy($sourceDocx, $targetDocx);
         $zip = new \ZipArchive();
         if ($zip->open($targetDocx) !== true) {

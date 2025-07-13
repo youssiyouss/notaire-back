@@ -61,7 +61,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/get_users', [ContractController::class, 'search_users']);
 
     Route::resource('contract_templates', ContractTemplateController::class);
-    Route::get('contract_templates/{id}/attributes', [ContractTemplateController::class, 'getAttributes']);
+    Route::get('contract_templates/{id}/attributes', [ContractTemplateController::class, 'getGroups']);
     Route::get('/users/{user}/client-details', [ContractController::class, 'getClientDetails']);
 
     //Liste des formulaires fiscaux

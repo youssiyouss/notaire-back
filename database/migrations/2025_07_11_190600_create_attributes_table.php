@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('template_attributes', function (Blueprint $table) {
+        Schema::create('attributes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('contract_id')->constrained()->cascadeOnDelete(); // Links to a contract
-            $table->string('name');
-            $table->string('value');
-            $table->string('matching_attribute');
+            $table->foreignId('group_id')->constrained('template_groups')->onUpdate('cascade')->onDelete('cascade');
+            $table->string('attribute_name');
+            $table->string('source_field')->nullable();
             $table->timestamps();
         });
     }
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('template_attributes');
+        Schema::dropIfExists('attributes');
     }
 };

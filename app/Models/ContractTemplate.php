@@ -11,10 +11,6 @@ class ContractTemplate extends Model
         'contract_subtype',
         'taxe_type',
         'taxe_pourcentage',
-        'attributes',
-        'part_all_transformations',
-        'part_a_transformations',
-        'part_b_transformations',
         'content',
         'created_by',
         'updated_by',
@@ -28,7 +24,6 @@ class ContractTemplate extends Model
         'consultationFee',
         'workFee',
         'others',
-
         'stamp',
         'registration',
         'advertisement',
@@ -41,6 +36,11 @@ class ContractTemplate extends Model
 
     public function contracts() {
         return $this->hasMany(Contract::class);
+    }
+
+    public function groups()
+    {
+        return $this->hasMany(TemplateGroup::class, 'template_id')->with(['attributes', 'wordTransformations']);
     }
 
     public function contractType()

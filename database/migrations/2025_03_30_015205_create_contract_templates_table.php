@@ -16,10 +16,6 @@ return new class extends Migration
             $table->foreignId('contract_type_id')->constrained('contract_types')->onDelete('cascade');
             $table->string('contract_subtype');
             $table->longText('content');
-            $table->json('attributes');
-            $table->json('part_a_transformations');
-            $table->json('part_b_transformations');
-            $table->json('part_all_transformations');
             $table->string('taxe_type');
             $table->decimal('taxe_pourcentage', 10, 2);
 

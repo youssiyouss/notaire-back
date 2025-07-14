@@ -60,15 +60,16 @@ class ContractController extends Controller
 
             $query = $request->input('search'); // Correct way to retrieve POST data
 
-            $users = User::where('role', 'Client')
-            ->where(function($q) use ($query) {
-                $q->where('nom', 'LIKE', "%{$query}%")
-                  ->orWhere('prenom', 'LIKE', "%{$query}%")
-                  ->orWhere('email', 'LIKE', "%{$query}%")
-                  ->orWhere('date_de_naissance', 'LIKE', "%{$query}%");
-            })
-            ->limit(15)
-            ->get();
+            $users = User::with(['client', 'documents']) // 👈 ajoute cette ligne
+                            ->where('role', 'Client')
+                            ->where(function($q) use ($query) {
+                                $q->where('nom', 'LIKE', "%{$query}%")
+                                ->orWhere('prenom', 'LIKE', "%{$query}%")
+                                ->orWhere('email', 'LIKE', "%{$query}%")
+                                ->orWhere('date_de_naissance', 'LIKE', "%{$query}%");
+                            })
+                            ->limit(15)
+                            ->get();
 
             return response()->json($users);
 
@@ -76,7 +77,6 @@ class ContractController extends Controller
             Log::error('Fetching error: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 422);
         }
-
     }
 
     public function getClientDetails($userId)
@@ -490,7 +490,6 @@ class ContractController extends Controller
 
         // Add more conditions as needed
         return false;
-
     }
 
     /**

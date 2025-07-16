@@ -103,6 +103,7 @@ class ContractController extends Controller
      */
     public function store(Request $request)
     {
+        Log::info($request);
         // 1️⃣ Load template
         $template = ContractTemplate::find($request->contractType);
         // 2️⃣ Create the Contract record
@@ -113,10 +114,13 @@ class ContractController extends Controller
             'created_by'  => Auth::id(),
         ]);
 
-        // 3️⃣ Persist each attribute
+        // 3️⃣ Persist each attribute + users per group
         foreach ($request->groups as $group) {
+            // Attributes
             foreach ($group['attributes'] as $attr) {
-                $attributeModel = Attribute::where('attribute_name', $attr['name'])->where('group_id', $group['group_id'])->first();
+                $attributeModel = Attribute::where('attribute_name', $attr['name'])
+                    ->where('group_id', $group['group_id'])
+                    ->first();
 
                 if ($attributeModel) {
                     AttributeValues::create([
@@ -126,16 +130,17 @@ class ContractController extends Controller
                     ]);
                 }
             }
+
+            // Users
+            foreach ($group['users'] as $user) {
+                ContractClient::create([
+                    'contract_id' => $contract->id,
+                    'client_id'   => $user['id'],
+                    'type'        => $group['group_name'],
+                ]);
+            }
         }
 
-        // 4️⃣ Link clients & buyers
-        foreach ($group['users'] as $user) {
-            ContractClient::create([
-                'contract_id' => $contract->id,
-                'client_id'   => $user['id'],
-                'type' => $group['group_name'], // Optional: distinguish group members
-            ]);
-        }
 
         // 5️⃣ Paths
         Storage::disk('public')->makeDirectory('contracts/pdf');

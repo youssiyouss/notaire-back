@@ -19,10 +19,14 @@ class TaxController extends Controller
     {
         $start = Carbon::parse($request->start);
         $end = Carbon::parse($request->end);
+        $tax_type = $request->tax_type;
 
-        $contracts = Contract::with(['clients', 'template', 'notaire'])
-            ->whereBetween('created_at', [$start, $end])
-            ->get();
+        $contracts = Contract::with(['clientUsers', 'template', 'notaire'])
+                ->whereBetween('created_at', [$start, $end])
+                ->whereHas('template', function ($query) use ($tax_type) {
+                    $query->where('taxe_type', $tax_type);
+                })
+                ->get();
 
         if ($contracts->isEmpty()) {
             return response()->json([
@@ -47,10 +51,12 @@ class TaxController extends Controller
 
         foreach ($contracts as $i => $contract) {
             $row = $i + 1;
-            $clientsList = $contract->clients->map(function ($client) {
+
+            $clientsList = $contract->clientUsers->map(function ($client) {
                 return "{$client->nom} {$client->prenom}";
             })->implode('، ');
 
+            $template->setValue("رقم#{$row}", $row);
             $template->setValue("تاريخ_العقد#{$row}", $contract->created_at->format('Y-m-d'));
             $template->setValue("العملاء#{$row}", $clientsList);
             $template->setValue("نوع_العقد#{$row}", $contract->template->contract_subtype ?? 'غير محدد');

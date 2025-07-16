@@ -54,7 +54,7 @@ class TaxController extends Controller
 
             $clientsList = $contract->clientUsers->map(function ($client) {
                 return "{$client->nom} {$client->prenom}";
-            })->implode('، ');
+            })->implode('/ ');
 
             $template->setValue("رقم#{$row}", $row);
             $template->setValue("تاريخ_العقد#{$row}", $contract->created_at->format('Y-m-d'));
@@ -63,7 +63,7 @@ class TaxController extends Controller
             $template->setValue("نسبة_الضريبة#{$row}", $contract->template->taxe_pourcentage ?? '');
             //$template->setValue("السعر#{$row}", number_format($contract->template->attributes['taxable_price'] ?? 0, 2));
              // Handle tax percentage based on type
-            if ($contract->template->taxe_type == "varied") {
+            if ($contract->template->taxe_type == "Variable") {
                 $template->setValue("نسبية#{$row}", $contract->template->taxe_pourcentage ?? '');
                 $template->setValue("ثابتة#{$row}", ''); // Empty the fixed tax field
             } else {
@@ -75,6 +75,19 @@ class TaxController extends Controller
         $notaireName = $contracts->first()->notaire->nom . ' ' . $contracts->first()->notaire->prenom;
         $template->setValue("موثق", $notaireName);
 
+        // Calculate total tax pourcentage
+        $totalTax = $contracts->sum(function ($contract) {
+            return is_numeric($contract->template->taxe_pourcentage) ? floatval($contract->template->taxe_pourcentage) : 0;
+        });
+
+        // Replace based on tax_type (assuming all contracts have the same tax_type from the request)
+        if ($tax_type === 'Variable') {
+            $template->setValue('المجموعن', number_format($totalTax, 1));
+            $template->setValue('المجموعث', ''); // Clear other placeholder
+        } else {
+            $template->setValue('المجموعث', number_format($totalTax, 1));
+            $template->setValue('المجموعن', ''); // Clear other placeholder
+        }
         try {
             $template->saveAs($outputPath);
             return response()->download($outputPath)->deleteFileAfterSend(true);

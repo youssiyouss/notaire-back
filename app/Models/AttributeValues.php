@@ -12,8 +12,8 @@ class AttributeValues extends Model
         return $this->belongsTo(Contract::class);
     }
 
-    public function get_attribute() {
-        return $this->belongsTo(Attribute::class);
+    public function attribute()
+    {
+        return $this->belongsTo(Attribute::class, 'attribute_id');
     }
-
 }

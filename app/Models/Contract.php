@@ -19,9 +19,11 @@ class Contract extends Model
         return $this->belongsTo(ContractTemplate::class);
     }
 
-    public function attributes() {
-        return $this->hasMany(ContractAttributes::class);
+    public function attributes()
+    {
+        return $this->hasMany(AttributeValues::class)->with('attribute');
     }
+
 
     public function clients()
     {

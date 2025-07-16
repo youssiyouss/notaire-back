@@ -5,7 +5,6 @@ namespace App\Http\Controllers\dashboard;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
-use App\Models\ContractAttributes;
 use App\Models\Client;
 use App\Models\User;
 use App\Models\Attribute;
@@ -43,7 +42,7 @@ class ContractController extends Controller
 
             return response()->json([
                 'contracts' => $contracts,
-           ], 200);
+        ], 200);
 
         } catch (\Exception $e) {
             Log::error('Fetching error: ' . $e->getMessage());
@@ -103,7 +102,6 @@ class ContractController extends Controller
      */
     public function store(Request $request)
     {
-        Log::info($request);
         // 1️⃣ Load template
         $template = ContractTemplate::find($request->contractType);
         // 2️⃣ Create the Contract record
@@ -352,7 +350,17 @@ class ContractController extends Controller
      */
     public function edit(string $id)
     {
-        //
+        try {
+            $c = Contract::findOrFail($id);
+
+            return response()->json([
+                'contract' => $c,
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Fetching error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
     }
 
     /**
@@ -361,112 +369,120 @@ class ContractController extends Controller
     public function update(Request $request, string $id)
     {
         Log::info($request);
-        // Find the existing contract
+
         $contract = Contract::findOrFail($id);
-        $template = ContractTemplate::find($request->contractType);
+        $template = ContractTemplate::findOrFail($request->contractType);
 
-        // Get clients and buyers from request
-        $clients = User::whereIn('id', array_column($request->clients, 'id'))->get();
-        $buyers = User::whereIn('id', array_column($request->buyers, 'id'))->get();
-
-        // Update contract record
+        // 🟢 Update base contract fields
         $contract->template_id = $template->id;
         $contract->notaire_id = $request->notaryOffice;
         $contract->save();
 
-        // Sync attributes - delete old ones and create new ones
-        ContractAttributes::where('contract_id', $contract->id)->delete();
-        foreach ($request['attributes'] ?? [] as $attributeData) {
-            ContractAttributes::create([
-                'contract_id' => $contract->id,
-                'name' => $attributeData['name'],
-                'value' => $attributeData['value'],
-            ]);
-        }
-
-        // Sync clients & buyers - delete old relationships first
+        // 🔁 Clean old data
+        AttributeValues::where('contract_id', $contract->id)->delete();
         ContractClient::where('contract_id', $contract->id)->delete();
-        foreach ($clients as $client) {
-            ContractClient::create([
-                'contract_id' => $contract->id,
-                'client_id' => $client->id,
-                'etat' => $request->clientType,
-                'type' => 'PartA'
-            ]);
-        }
-        foreach ($buyers as $buyer) {
-            ContractClient::create([
-                'contract_id' => $contract->id,
-                'client_id' => $buyer->id,
-                'etat' => $request->buyerType,
-                'type' => 'PartB'
-            ]);
-        }
 
-        // Only regenerate PDF if template or attributes changed
-        if ($this->shouldRegeneratePdf($contract, $request)) {
-            $templatePath = storage_path("app/public/{$template->content}");
-            $uniqueId = uniqid();
-            $docxPath = storage_path("app/tmp_contract_{$uniqueId}.docx");
-            $pdfOutputDir = storage_path("app/public/contracts");
+        // 🆕 Insert new attributes + users by group
+        foreach ($request->groups as $group) {
+            // Insert attributes
+            foreach ($group['attributes'] as $attr) {
+                $attributeModel = Attribute::where('attribute_name', $attr['name'])
+                    ->where('group_id', $group['group_id'])
+                    ->first();
 
-            // Ensure contracts directory exists
-            Storage::disk('public')->makeDirectory('contracts');
-
-            $pdfFileName = "contract_{$contract->id}_" . time() . ".pdf";
-            $pdfPath = "{$pdfOutputDir}/{$pdfFileName}";
-
-            // Initialize template processor
-            $processor = new TemplateProcessor($templatePath);
-
-            // Replace placeholders
-            $processor = $this->replacePlaceholdersInTemplate(
-                $processor,
-                $template,
-                $clients,
-                $request['attributes'],
-                $buyers,
-                $request->notaryOffice
-            );
-
-            // Save the modified template
-            $processor->saveAs($docxPath);
-
-            // Convert to PDF
-            $libreOfficeBin = env('LIBREOFFICE_BIN');
-            $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir " .
-                    escapeshellarg($pdfOutputDir) . ' ' . escapeshellarg($docxPath);
-            $output = shell_exec($command . " 2>&1");
-            \Log::error("LibreOffice conversion output: " . $output);
-
-            // Handle the generated PDF
-            $generatedPdfPath = "{$pdfOutputDir}/" . pathinfo($docxPath, PATHINFO_FILENAME) . ".pdf";
-            if (File::exists($generatedPdfPath)) {
-                // Delete old PDF if exists
-                if ($contract->pdf_path) {
-                    Storage::disk('public')->delete($contract->pdf_path);
+                if ($attributeModel) {
+                    AttributeValues::create([
+                        'contract_id'  => $contract->id,
+                        'attribute_id' => $attributeModel->id,
+                        'value'        => $attr['value'],
+                    ]);
                 }
-                File::move($generatedPdfPath, $pdfPath);
-            }else {
-                \Log::error('Le fichier PDF généré est introuvable à : ' . $generatedPdfPath);
+            }
+
+            // Insert users
+            foreach ($group['users'] as $user) {
+                ContractClient::create([
+                    'contract_id' => $contract->id,
+                    'client_id'   => $user['id'],
+                    'type'        => $group['group_name'],
+                ]);
+            }
+        }
+
+        // 🔁 Regenerate files only if needed
+        if ($this->shouldRegeneratePdf($contract, $request)) {
+
+            // 📁 Paths setup
+            $templatePath  = storage_path("app/public/{$template->content}");
+            $uniqueId      = uniqid();
+            $tempDocxPath  = storage_path("app/tmp_contract_{$uniqueId}.docx");
+            $pdfFileName   = "contract_{$contract->id}_" . time() . ".pdf";
+            $docxFileName  = "contract_{$contract->id}_" . time() . ".docx";
+            $pdfFinalPath  = storage_path("app/public/contracts/pdf/{$pdfFileName}");
+            $docxFinalPath = storage_path("app/public/contracts/word/{$docxFileName}");
+
+            Storage::disk('public')->makeDirectory('contracts/pdf');
+            Storage::disk('public')->makeDirectory('contracts/word');
+
+            // 📌 Placeholder replacements
+            $replacements = [];
+
+            foreach ($request->groups as $group) {
+                foreach ($group['attributes'] as $attr) {
+                    $replacements[$attr['name']] = $attr['value'];
+                }
+
+                $groupModel = TemplateGroup::with('wordTransformations')->find($group['group_id']);
+                if ($groupModel && $groupModel->wordTransformations) {
+                    foreach ($groupModel->wordTransformations as $trans) {
+                        $value = $this->determinePronounForm($trans, $group['users']);
+                        $replacements[$trans->placeholder] = $value;
+                    }
+                }
+            }
+
+            // 👤 Nom du notaire
+            $notary = User::find($request->notaryOffice);
+            if ($notary) {
+                $replacements['اسم_الموثق'] = $notary->nom . ' ' . $notary->prenom;
+            }
+
+            // 🧠 Injection DOCX
+            $this->injectBookmarks($templatePath, $tempDocxPath, $replacements);
+
+            // 📝 Enregistrer la version Word
+            File::copy($tempDocxPath, $docxFinalPath);
+            $contract->update(['word_path' => "contracts/word/{$docxFileName}"]);
+
+            // 🔄 Convertir en PDF
+            $libreOfficeBin = env('LIBREOFFICE_BIN');
+            $command = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir "
+                . escapeshellarg(storage_path("app/public/contracts/pdf")) . ' '
+                . escapeshellarg($tempDocxPath)
+                . " 2>&1";
+            $output = shell_exec($command);
+
+            $generatedPdfPath = storage_path("app/public/contracts/pdf/") . pathinfo($tempDocxPath, PATHINFO_FILENAME) . ".pdf";
+
+            if (File::exists($generatedPdfPath)) {
+                File::move($generatedPdfPath, $pdfFinalPath);
+                $contract->update(['pdf_path' => "contracts/pdf/{$pdfFileName}"]);
+            } else {
+                \Log::error("PDF not found: " . $generatedPdfPath);
                 return response()->json([
-                    'message' => 'Erreur : le fichier PDF n’a pas été généré correctement.',
-                    'debugPath' => $generatedPdfPath
+                    'message' => 'Erreur : PDF introuvable après la génération.',
+                    'commandOutput' => $output,
+                    'pathTried' => $generatedPdfPath,
                 ], 500);
             }
 
-            // Update contract with new PDF path
-            $contract->pdf_path = "contracts/{$pdfFileName}";
-            $contract->save();
-
-            // Cleanup
-            File::delete($docxPath);
+            // 🧹 Nettoyage
+            File::delete($tempDocxPath);
         }
 
         return response()->json([
             'message' => 'Contrat mis à jour avec succès!',
-            'contract' => $contract,
-            'pdfUrl' => $contract->pdf_path ? Storage::disk('public')->url($contract->pdf_path) : null
+            'contract' => $contract
         ], 200);
     }
 

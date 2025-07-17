@@ -57,9 +57,9 @@ class ContractController extends Controller
     {
         try {
 
-            $query = $request->input('search'); // Correct way to retrieve POST data
+            $query = $request->input('search');
 
-            $users = User::with(['client', 'documents']) // 👈 ajoute cette ligne
+            $users = User::with(['client', 'documents'])
                             ->where('role', 'Client')
                             ->where(function($q) use ($query) {
                                 $q->where('nom', 'LIKE', "%{$query}%")
@@ -334,7 +334,7 @@ class ContractController extends Controller
                 'clients.client',
                 'attributes'
                 ])->findOrFail($id);
-            Log::info($contract);
+
             return response()->json(['contract' => $contract], 200);
         }catch (\Error $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -351,11 +351,14 @@ class ContractController extends Controller
     public function edit(string $id)
     {
         try {
-            $c = Contract::findOrFail($id);
+            $contract = Contract::with([
+                'template.groups.attributes',
+                'attributes.attribute.group',
+                'clients.client',
+                'clientUsers.client'
+                ])->findOrFail($id);
 
-            return response()->json([
-                'contract' => $c,
-            ], 200);
+            return response()->json(['contract' => $contract], 200);
 
         } catch (\Exception $e) {
             Log::error('Fetching error: ' . $e->getMessage());

@@ -12,7 +12,6 @@ class TemplateGroup extends Model
     public function template()
     {
         return $this->belongsTo(ContractTemplate::class);
-
     }
 
     public function attributes()

@@ -24,6 +24,10 @@ class Contract extends Model
         return $this->hasMany(AttributeValues::class)->with('attribute');
     }
 
+    public function clientUsers()
+    {
+        return $this->belongsToMany(User::class, 'contract_client', 'contract_id', 'client_id');
+    }
 
     public function clients()
     {
@@ -40,11 +44,6 @@ class Contract extends Model
 
     public function editor() {
         return $this->belongsTo(User::class, 'updated_by');
-    }
-
-    public function clientUsers()
-    {
-        return $this->belongsToMany(User::class, 'contract_client', 'contract_id', 'client_id');
     }
 
 }

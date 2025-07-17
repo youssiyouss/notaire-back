@@ -23,11 +23,17 @@ class TaxController extends Controller
         $tax_type = $request->tax_type;
 
         $contracts = Contract::with(['clientUsers', 'template', 'notaire'])
-                ->whereBetween('created_at', [$start, $end])
-                ->whereHas('template', function ($query) use ($tax_type) {
-                    $query->where('taxe_type', $tax_type);
-                })
-                ->get();
+                    ->where(function ($query) use ($start, $end) {
+                        $query->whereBetween('created_at', [$start, $end])
+                            ->orWhereDate('created_at', $start)
+                            ->orWhereDate('created_at', $end);
+                    })
+                    ->whereNotNull('price')
+                    ->whereHas('template', function ($query) use ($tax_type) {
+                        $query->where('taxe_type', $tax_type);
+                    })
+                    ->get();
+
 
         if ($contracts->isEmpty()) {
             return response()->json([
@@ -97,7 +103,7 @@ class TaxController extends Controller
         // Convert total to Arabic letters
         //$arabicTotal = SpellNumber::value($totalTaxAmount)->locale('ar')->toMoney();
         $arabicTotal = Number::spell($totalTaxAmount, 'ar');
-        $template->setValue('المجموعحرفا', $arabicTotal.'دينار جزائري');
+        $template->setValue('المجموعحرفا', $arabicTotal.' دينار جزائري ');
 
         // Set the total tax amount based on tax type
         if ($tax_type === 'Variable') {

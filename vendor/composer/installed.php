@@ -3,7 +3,7 @@
         'name' => 'laravel/laravel',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'b19dd80748662233871a6bdd6f404131a777cb86',
+        'reference' => 'cf5cccbbcb39b4a278fa8cfab5c2226087336343',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -415,7 +415,7 @@
         'laravel/laravel' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'b19dd80748662233871a6bdd6f404131a777cb86',
+            'reference' => 'cf5cccbbcb39b4a278fa8cfab5c2226087336343',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -904,6 +904,15 @@
             'replaced' => array(
                 0 => '4.7.6',
             ),
+        ),
+        'rmunate/spell-number' => array(
+            'pretty_version' => 'v4.3.0',
+            'version' => '4.3.0.0',
+            'reference' => '4dfa6b72328968bb001af97ec6072796c03fa0c1',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../rmunate/spell-number',
+            'aliases' => array(),
+            'dev_requirement' => false,
         ),
         'sebastian/cli-parser' => array(
             'pretty_version' => '3.0.2',

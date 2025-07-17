@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use PhpOffice\PhpWord\TemplateProcessor;
 use Illuminate\Support\Str;
+use Illuminate\Support\Number;
 
 class TaxController extends Controller
 {
@@ -49,45 +50,64 @@ class TaxController extends Controller
         $template = new TemplateProcessor($templatePath);
         $template->cloneRow('${نوع_العقد}', $contracts->count());
 
+        $totalTaxAmount = 0; // Initialize total tax amount
+
         foreach ($contracts as $i => $contract) {
+            if (!$contract->template) continue;
             $row = $i + 1;
 
             $clientsList = $contract->clientUsers->map(function ($client) {
                 return "{$client->nom} {$client->prenom}";
             })->implode('/ ');
 
+
+            $notaireName = $contracts->first()->notaire->nom . ' ' . $contracts->first()->notaire->prenom;
+            $template->setValue("موثق", $notaireName);
+
             $template->setValue("رقم#{$row}", $row);
             $template->setValue("تاريخ_العقد#{$row}", $contract->created_at->format('Y-m-d'));
             $template->setValue("العملاء#{$row}", $clientsList);
             $template->setValue("نوع_العقد#{$row}", $contract->template->contract_subtype ?? 'غير محدد');
-            $template->setValue("نسبة_الضريبة#{$row}", $contract->template->taxe_pourcentage ?? '');
-            //$template->setValue("السعر#{$row}", number_format($contract->template->attributes['taxable_price'] ?? 0, 2));
-             // Handle tax percentage based on type
-            if ($contract->template->taxe_type == "Variable") {
-                $template->setValue("نسبية#{$row}", $contract->template->taxe_pourcentage ?? '');
-                $template->setValue("ثابتة#{$row}", ''); // Empty the fixed tax field
+
+            $price = $contract->price ?? 0;
+            $taxPercentage = $contract->template->taxe_pourcentage ?? 0;
+
+            // Calculate tax amount based on tax type
+            if ($tax_type == "Variable") {
+                // For variable tax: tax amount = price * (taxPercentage / 100)
+                $taxAmount = $price * ($taxPercentage);
+                $template->setValue("السعر#{$row}", number_format($price, 2));
+                $template->setValue("نسبية#{$row}", $taxAmount);
+                $template->setValue("ثابتة#{$row}", '');
             } else {
-                $template->setValue("ثابتة#{$row}", $contract->template->taxe_pourcentage ?? '');
-                $template->setValue("نسبية#{$row}", ''); // Empty the variable tax field
+                // For fixed tax: tax amount = taxPercentage (fixed amount)
+                $taxAmount = $taxPercentage;
+                $template->setValue("السعر#{$row}", number_format($price, 2));
+                $template->setValue("ثابتة#{$row}", number_format($taxPercentage, 2));
+                $template->setValue("نسبية#{$row}", ''); // Empty variable tax field
+                $template->setValue("مبلغ_الضريبة#{$row}", number_format($taxAmount, 2));
             }
+
+            $totalTaxAmount += $taxAmount;
         }
 
-        $notaireName = $contracts->first()->notaire->nom . ' ' . $contracts->first()->notaire->prenom;
-        $template->setValue("موثق", $notaireName);
+        // Set formatted date (jj/mm/aaaa)
+        $template->setValue('تاريخ', now()->format('Y/m/d'));
 
-        // Calculate total tax pourcentage
-        $totalTax = $contracts->sum(function ($contract) {
-            return is_numeric($contract->template->taxe_pourcentage) ? floatval($contract->template->taxe_pourcentage) : 0;
-        });
+        // Convert total to Arabic letters
+        //$arabicTotal = SpellNumber::value($totalTaxAmount)->locale('ar')->toMoney();
+        $arabicTotal = Number::spell($totalTaxAmount, 'ar');
+        $template->setValue('المجموعحرفا', $arabicTotal.'دينار جزائري');
 
-        // Replace based on tax_type (assuming all contracts have the same tax_type from the request)
+        // Set the total tax amount based on tax type
         if ($tax_type === 'Variable') {
-            $template->setValue('المجموعن', number_format($totalTax, 1));
-            $template->setValue('المجموعث', ''); // Clear other placeholder
+            $template->setValue('المجموعن', number_format($totalTaxAmount, 2));
+            $template->setValue('المجموعث', ''); // Clear fixed tax total
         } else {
-            $template->setValue('المجموعث', number_format($totalTax, 1));
-            $template->setValue('المجموعن', ''); // Clear other placeholder
+            $template->setValue('المجموعث', number_format($totalTaxAmount, 2));
+            $template->setValue('المجموعن', ''); // Clear variable tax total
         }
+
         try {
             $template->saveAs($outputPath);
             return response()->download($outputPath)->deleteFileAfterSend(true);
@@ -100,10 +120,11 @@ class TaxController extends Controller
     }
 
 
-    public function generatePreview(Request $request)
+    public function generateBon(Request $request)
     {
         $bon = $request->all();
         Log::info($bon);
+
         $templatePath = public_path('templates/bon_template.docx');
         $tempDir = storage_path('app/temp');
 
@@ -178,6 +199,11 @@ class TaxController extends Controller
             // Nettoyage
             @unlink($docxPath);
             @unlink($generatedPdfPath);
+            $contract = Contract::findOrFail($request->contract_id);
+            $contract->price = $request->amount;
+            $contract->status = 'Payé';
+            $contract->receiptPath = $publicPdfPath;
+            $contract->save();
 
             return response()->json([
                 'preview_url' => asset('storage/' . $publicPdfPath)

@@ -66,7 +66,7 @@ Route::middleware('auth:api')->group(function () {
 
     //Liste des formulaires fiscaux
     Route::resource('impots', TaxController::class);
-    Route::post('/generatePreview', [TaxController::class, 'generatePreview']);
+    Route::post('/generateBon', [TaxController::class, 'generateBon']);
     Route::post('/bon/final', [TaxController::class, 'generateFinalBon']);
 
     // In routes/web.php

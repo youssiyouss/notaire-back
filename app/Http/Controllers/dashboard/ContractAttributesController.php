@@ -5,9 +5,11 @@ use App\Http\Controllers\Controller;
 
 use App\Models\ContractAttributes;
 use Illuminate\Http\Request;
+
 class ContractAttributesController extends Controller
 {
- public function store(Request $request) {
+
+    public function store(Request $request) {
         $validated = $request->validate([
             'contract_subtype_id' => 'required|exists:contract_subtypes,id',
             'attributes' => 'required|array|min:1',

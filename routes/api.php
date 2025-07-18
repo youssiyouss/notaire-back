@@ -12,6 +12,7 @@ use App\Http\Controllers\dashboard\ContractAttributesController;
 use App\Http\Controllers\dashboard\ContractTemplateController;
 use App\Http\Controllers\dashboard\ClientDocumentController;
 use App\Http\Controllers\dashboard\TaxController;
+use App\Http\Controllers\dashboard\CompanyController;
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -73,5 +74,10 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/download-tax-report', function (Request $request) {
         // Same logic as store() but only returns DOCX
     })->name('download.tax.report');
+
+    //Companies
+    Route::get('/companies/search', [CompanyController::class, 'search']);
+    Route::resource('companies', CompanyController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+
 });
 

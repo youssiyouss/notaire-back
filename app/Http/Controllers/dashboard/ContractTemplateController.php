@@ -374,4 +374,18 @@ class ContractTemplateController extends Controller
         return response()->json(['message' => 'Résumé ajouté avec succès.']);
     }
 
+    public function deleteSummary($id)
+    {
+
+        $template = ContractTemplate::findOrFail($id);
+
+        if($template->summary_path){
+            Storage::disk('public')->delete($template->summary_path);
+        }
+        $template->summary_path=null;
+        $template->save();
+
+        return response()->json(['message' => 'Résumé supprimé avec succès.']);
+    }
+
 }

@@ -59,7 +59,7 @@ class ContractController extends Controller
 
             $query = $request->input('search');
 
-            $users = User::with(['client', 'documents'])
+            $users = User::with(['client', 'documents','companies'])
                             ->where('role', 'Client')
                             ->where(function($q) use ($query) {
                                 $q->where('nom', 'LIKE', "%{$query}%")

@@ -129,8 +129,6 @@ class TaxController extends Controller
     public function generateBon(Request $request)
     {
         $bon = $request->all();
-        Log::info($bon);
-
         $templatePath = public_path('templates/bon_template.docx');
         $tempDir = storage_path('app/temp');
 

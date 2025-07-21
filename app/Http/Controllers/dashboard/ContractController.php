@@ -254,7 +254,9 @@ class ContractController extends Controller
                 'template',
                 'notaire',
                 'clients.client',
-                'attributes'
+                'attributes',
+                'creator',
+                'editor'
                 ])->findOrFail($id);
 
             return response()->json(['contract' => $contract], 200);
@@ -540,7 +542,7 @@ class ContractController extends Controller
                 $summaryReplacements['اسم_الموثق'] = $notary->nom . ' ' . $notary->prenom;
             }
 
-            \Log::info("Prepared replacements: " . json_encode($summaryReplacements));
+           // \Log::info("Prepared replacements: " . json_encode($summaryReplacements));
 
             // 5. Process the document
             try {
@@ -553,7 +555,6 @@ class ContractController extends Controller
             // 6. Save final docx
             try {
                 File::copy($summaryTempDocxPath, $summaryDocxFinal);
-                \Log::info("Saved final DOCX to: {$summaryDocxFinal}");
             } catch (\Exception $e) {
                 \Log::error("Failed to save final DOCX: " . $e->getMessage());
                 return response()->json(['error' => 'Failed to save document'], 500);
@@ -569,23 +570,18 @@ class ContractController extends Controller
                 escapeshellarg(storage_path("app/public/contracts/summary/pdf")) . ' ' .
                 escapeshellarg($summaryTempDocxPath) . " 2>&1";
 
-            \Log::info("Executing conversion command: {$summaryCommand}");
             $summaryOutput = shell_exec($summaryCommand);
-            \Log::info("Conversion output: {$summaryOutput}");
 
             // 8. Verify and move PDF
             $generatedPdfBaseName = pathinfo($summaryTempDocxPath, PATHINFO_FILENAME);
             $generatedSummaryPdfPath = storage_path("app/public/contracts/summary/pdf/{$generatedPdfBaseName}.pdf");
 
             if (!File::exists($generatedSummaryPdfPath)) {
-                \Log::error("PDF was not generated. Expected at: {$generatedSummaryPdfPath}");
-                \Log::error("Command output was: {$summaryOutput}");
                 return response()->json(['error' => 'PDF conversion failed'], 500);
             }
 
             try {
                 File::move($generatedSummaryPdfPath, $summaryPdfFinal);
-                \Log::info("PDF successfully moved to: {$summaryPdfFinal}");
             } catch (\Exception $e) {
                 \Log::error("Failed to move PDF: " . $e->getMessage());
                 return response()->json(['error' => 'Failed to save PDF'], 500);
@@ -629,8 +625,6 @@ class ContractController extends Controller
 
     protected function injectBookmarks($sourceDocx, $targetDocx, array $replacements)
     {
-        \Log::info("Starting bookmark injection from {$sourceDocx} to {$targetDocx}");
-
         if (!copy($sourceDocx, $targetDocx)) {
             \Log::error("Failed to copy template file");
             throw new \Exception("Failed to copy template file");
@@ -669,7 +663,6 @@ class ContractController extends Controller
                     $starts = $xpath->query($query);
 
                     if ($starts->length === 0) {
-                        \Log::warning("Bookmark '{$name}' not found in document");
                         continue;
                     }
 
@@ -733,7 +726,6 @@ class ContractController extends Controller
             }
 
             $zip->close();
-            \Log::info("Successfully injected bookmarks");
 
         } catch (\Exception $e) {
             $zip->close();

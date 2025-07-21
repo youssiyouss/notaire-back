@@ -12,6 +12,7 @@ class ContractTemplate extends Model
         'taxe_type',
         'taxe_pourcentage',
         'content',
+        'summary_path',
         'created_by',
         'updated_by',
 

@@ -49,6 +49,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/contract-types', [ContractController::class, 'getContractTypes']);
 
     Route::resource('contracts', ContractController::class);
+    Route::get('/contracts/{contract}/summarize', [ContractController::class,  'summarize']);
 
     Route::prefix('contract-attributes')->group(function () {
         Route::post('/', [ContractAttributesController::class, 'store']); // Add attributes
@@ -63,6 +64,7 @@ Route::middleware('auth:api')->group(function () {
 
     Route::resource('contract_templates', ContractTemplateController::class);
     Route::get('contract_templates/{id}/attributes', [ContractTemplateController::class, 'getGroups']);
+    Route::post('contract_templates/upload_summary', [ContractTemplateController::class, 'uploadSummary']);
     Route::get('/users/{user}/client-details', [ContractController::class, 'getClientDetails']);
 
     //Liste des formulaires fiscaux

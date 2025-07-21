@@ -244,84 +244,6 @@ class ContractController extends Controller
 
 
 
-    protected function injectBookmarks($sourceDocx, $targetDocx, array $replacements)
-    {
-        Log::info($replacements);
-        copy($sourceDocx, $targetDocx);
-        $zip = new \ZipArchive();
-        if ($zip->open($targetDocx) !== true) {
-            throw new \Exception("Cannot open DOCX");
-        }
-
-        $xml = $zip->getFromName('word/document.xml');
-        $dom = new \DOMDocument();
-        $dom->preserveWhiteSpace = false;
-        $dom->loadXML($xml);
-        $xpath = new \DOMXPath($dom);
-        $xpath->registerNamespace('w','http://schemas.openxmlformats.org/wordprocessingml/2006/main');
-
-        foreach ($replacements as $name => $value) {
-            $starts = $xpath->query("//w:bookmarkStart[@w:name='$name']");
-            foreach ($starts as $bmStart) {
-                $bmId = $bmStart->getAttribute('w:id');
-
-                // --- find the first run after the bookmarkStart to copy its formatting
-                $formatRun = null;
-                $node = $bmStart->nextSibling;
-                while ($node) {
-                    if ($node->nodeName === 'w:r') {
-                        $formatRun = $node;
-                        break;
-                    }
-                    $node = $node->nextSibling;
-                }
-
-                // --- now remove everything up to the bookmarkEnd
-                $toRemove = [];
-                $node = $bmStart->nextSibling;
-                while ($node) {
-                    if ($node->nodeName === 'w:bookmarkEnd'
-                        && $node->getAttribute('w:id') === $bmId) {
-                        $bmEnd = $node;
-                        break;
-                    }
-                    $toRemove[] = $node;
-                    $node = $node->nextSibling;
-                }
-                foreach ($toRemove as $rem) {
-                    $bmStart->parentNode->removeChild($rem);
-                }
-
-                // --- create a new run, copy formatting if available
-                $wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-                $newR = $dom->createElementNS($wNs, 'w:r');
-
-                if ($formatRun) {
-                    // clone its <w:rPr> (the first if >1)
-                    $rPr = $xpath->query('.//w:rPr', $formatRun)->item(0);
-                    if ($rPr) {
-                        $rPrClone = $rPr->cloneNode(true);
-                        $newR->appendChild($rPrClone);
-                    }
-                }
-
-                // add your text
-                $newT = $dom->createElementNS($wNs, 'w:t', htmlspecialchars($value));
-                // preserve spaces exactly
-                $newT->setAttribute('xml:space', 'preserve');
-                $newR->appendChild($newT);
-
-                // insert before bookmarkEnd
-                $bmStart->parentNode->insertBefore($newR, $bmEnd);
-            }
-        }
-
-        // save back
-        $zip->addFromString('word/document.xml', $dom->saveXML());
-        $zip->close();
-    }
-
-
     /**
      * Display the specified resource.
      */
@@ -532,6 +454,291 @@ class ContractController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function summarize(string $id)
+    {
+        try {
+            \Log::info("Starting summary generation for contract ID: {$id}");
+
+            // 1. Load the contract with relations
+            $contract = Contract::with(['template.groups.attributes', 'attributes.attribute', 'notaire'])->find($id);
+
+            if (!$contract) {
+                \Log::error("Contract not found with ID: {$id}");
+                return response()->json(['error' => 'Contract not found'], 404);
+            }
+
+            \Log::info("Contract found, loading template and notary");
+
+            $template = $contract->template;
+            $notary = $contract->notaire;
+            $libreOfficeBin = env('LIBREOFFICE_BIN');
+
+            // 2. Validate template and summary file
+            if (!$template->summary_path) {
+                \Log::error("No summary path defined in template for contract: {$id}");
+                return response()->json(['error' => 'Summary template path not configured'], 400);
+            }
+
+            $summaryTemplatePath = storage_path("app/public/{$template->summary_path}");
+
+            if (!File::exists($summaryTemplatePath)) {
+                \Log::error("Summary template file not found at path: {$summaryTemplatePath}");
+                return response()->json([
+                    'error' => "Summary template file not found",
+                    'path' => $template->summary_path
+                ], 404);
+            }
+
+            \Log::info("Summary template found at: {$summaryTemplatePath}");
+
+            // 3. Prepare directories and file paths
+            try {
+                Storage::disk('public')->makeDirectory('contracts/summary/pdf');
+                Storage::disk('public')->makeDirectory('contracts/summary/word');
+            } catch (\Exception $e) {
+                \Log::error("Failed to create summary directories: " . $e->getMessage());
+                return response()->json(['error' => 'Failed to create output directories'], 500);
+            }
+
+            $summaryDocxName = "summary_contract_{$contract->id}.docx";
+            $summaryPdfName = "summary_contract_{$contract->id}.pdf";
+            $summaryTempDocxPath = storage_path("app/temp_summary_contract_{$contract->id}.docx");
+            $summaryDocxFinal = storage_path("app/public/contracts/summary/word/{$summaryDocxName}");
+            $summaryPdfFinal = storage_path("app/public/contracts/summary/pdf/{$summaryPdfName}");
+
+            // 4. Prepare replacements
+            $summaryReplacements = [];
+
+            // Process attribute values
+            $attributeValues = $contract->attributes;
+            foreach ($attributeValues as $attrValue) {
+                if ($attrValue->attribute) {
+                    $summaryReplacements[$attrValue->attribute->attribute_name] = $attrValue->value;
+                }
+            }
+
+            // Process group transformations
+            foreach ($template->groups as $group) {
+                $groupUsers = $contract->clients()
+                    ->where('type', $group->name)
+                    ->with('client')
+                    ->get();
+
+                if ($group->wordTransformations) {
+                    foreach ($group->wordTransformations as $trans) {
+                        $value = $this->determinePronounForm($trans, $groupUsers);
+                        $summaryReplacements[$trans->placeholder] = $value;
+                    }
+                }
+            }
+
+            // Add notary information if exists
+            if ($notary) {
+                $summaryReplacements['اسم_الموثق'] = $notary->nom . ' ' . $notary->prenom;
+            }
+
+            \Log::info("Prepared replacements: " . json_encode($summaryReplacements));
+
+            // 5. Process the document
+            try {
+                $this->injectBookmarks($summaryTemplatePath, $summaryTempDocxPath, $summaryReplacements);
+            } catch (\Exception $e) {
+                \Log::error("Failed to inject bookmarks: " . $e->getMessage());
+                return response()->json(['error' => 'Failed to process document template'], 500);
+            }
+
+            // 6. Save final docx
+            try {
+                File::copy($summaryTempDocxPath, $summaryDocxFinal);
+                \Log::info("Saved final DOCX to: {$summaryDocxFinal}");
+            } catch (\Exception $e) {
+                \Log::error("Failed to save final DOCX: " . $e->getMessage());
+                return response()->json(['error' => 'Failed to save document'], 500);
+            }
+
+            // 7. Convert to PDF
+            if (!$libreOfficeBin || !file_exists($libreOfficeBin)) {
+                \Log::error("LibreOffice binary not found at: {$libreOfficeBin}");
+                return response()->json(['error' => 'PDF conversion tool not configured'], 500);
+            }
+
+            $summaryCommand = "\"{$libreOfficeBin}\" --headless --convert-to pdf --outdir " .
+                escapeshellarg(storage_path("app/public/contracts/summary/pdf")) . ' ' .
+                escapeshellarg($summaryTempDocxPath) . " 2>&1";
+
+            \Log::info("Executing conversion command: {$summaryCommand}");
+            $summaryOutput = shell_exec($summaryCommand);
+            \Log::info("Conversion output: {$summaryOutput}");
+
+            // 8. Verify and move PDF
+            $generatedPdfBaseName = pathinfo($summaryTempDocxPath, PATHINFO_FILENAME);
+            $generatedSummaryPdfPath = storage_path("app/public/contracts/summary/pdf/{$generatedPdfBaseName}.pdf");
+
+            if (!File::exists($generatedSummaryPdfPath)) {
+                \Log::error("PDF was not generated. Expected at: {$generatedSummaryPdfPath}");
+                \Log::error("Command output was: {$summaryOutput}");
+                return response()->json(['error' => 'PDF conversion failed'], 500);
+            }
+
+            try {
+                File::move($generatedSummaryPdfPath, $summaryPdfFinal);
+                \Log::info("PDF successfully moved to: {$summaryPdfFinal}");
+            } catch (\Exception $e) {
+                \Log::error("Failed to move PDF: " . $e->getMessage());
+                return response()->json(['error' => 'Failed to save PDF'], 500);
+            }
+
+            // 9. Update contract record
+            try {
+                $contract->update([
+                    'summary_word_path' => "contracts/summary/word/{$summaryDocxName}",
+                    'summary_pdf_path' => "contracts/summary/pdf/{$summaryPdfName}"
+                ]);
+
+                $contract->save();
+            } catch (\Exception $e) {
+                \Log::error("Failed to update contract record: " . $e->getMessage());
+                // Continue despite this error as files were generated
+            }
+
+            // 10. Clean up
+            try {
+                File::delete($summaryTempDocxPath);
+            } catch (\Exception $e) {
+                \Log::error("Failed to delete temp file: " . $e->getMessage());
+                // Not critical, just log
+            }
+
+            return response()->json([
+                'message' => 'Summary generated successfully',
+                'summary_pdf' => $contract->summary_pdf_path,
+                'summary_word' => $contract->summary_word_path
+            ], 201);
+
+        } catch (\Throwable $e) {
+            \Log::error("Unexpected error in summarize: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return response()->json([
+                'error' => 'An unexpected error occurred',
+                'details' => env('APP_DEBUG') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    protected function injectBookmarks($sourceDocx, $targetDocx, array $replacements)
+    {
+        \Log::info("Starting bookmark injection from {$sourceDocx} to {$targetDocx}");
+
+        if (!copy($sourceDocx, $targetDocx)) {
+            \Log::error("Failed to copy template file");
+            throw new \Exception("Failed to copy template file");
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($targetDocx) !== true) {
+            \Log::error("Cannot open DOCX file: {$targetDocx}");
+            throw new \Exception("Cannot open DOCX file");
+        }
+
+        try {
+            $xml = $zip->getFromName('word/document.xml');
+            if (!$xml) {
+                throw new \Exception("Could not read document.xml from DOCX");
+            }
+
+            // Force UTF-8 encoding
+            $xml = mb_convert_encoding($xml, 'UTF-8', mb_detect_encoding($xml));
+            $dom = new \DOMDocument();
+            $dom->preserveWhiteSpace = false;
+
+            // Important: Load XML with UTF-8 encoding options
+            if (!$dom->loadXML($xml, LIBXML_NOENT | LIBXML_NONET | LIBXML_PARSEHUGE)) {
+                throw new \Exception("Failed to parse document.xml");
+            }
+
+            $xpath = new \DOMXPath($dom);
+            $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+            foreach ($replacements as $name => $value) {
+                try {
+                    // Ensure bookmark name is properly encoded for XPath
+                    $encodedName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+                    $query = "//w:bookmarkStart[@w:name='{$encodedName}']";
+                    $starts = $xpath->query($query);
+
+                    if ($starts->length === 0) {
+                        \Log::warning("Bookmark '{$name}' not found in document");
+                        continue;
+                    }
+
+                    foreach ($starts as $bmStart) {
+                        $bmId = $bmStart->getAttribute('w:id');
+                        $formatRun = null;
+                        $node = $bmStart->nextSibling;
+
+                        // Find first run after bookmarkStart for formatting
+                        while ($node) {
+                            if ($node->nodeName === 'w:r') {
+                                $formatRun = $node;
+                                break;
+                            }
+                            $node = $node->nextSibling;
+                        }
+
+                        // Remove content between bookmarkStart and bookmarkEnd
+                        $toRemove = [];
+                        $node = $bmStart->nextSibling;
+                        while ($node) {
+                            if ($node->nodeName === 'w:bookmarkEnd' && $node->getAttribute('w:id') === $bmId) {
+                                $bmEnd = $node;
+                                break;
+                            }
+                            $toRemove[] = $node;
+                            $node = $node->nextSibling;
+                        }
+
+                        foreach ($toRemove as $rem) {
+                            $bmStart->parentNode->removeChild($rem);
+                        }
+
+                        // Create new run with value
+                        $wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+                        $newR = $dom->createElementNS($wNs, 'w:r');
+
+                        if ($formatRun) {
+                            $rPr = $xpath->query('.//w:rPr', $formatRun)->item(0);
+                            if ($rPr) {
+                                $rPrClone = $rPr->cloneNode(true);
+                                $newR->appendChild($rPrClone);
+                            }
+                        }
+
+                        $newT = $dom->createElementNS($wNs, 'w:t', htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
+                        $newT->setAttribute('xml:space', 'preserve');
+                        $newR->appendChild($newT);
+                        $bmStart->parentNode->insertBefore($newR, $bmEnd);
+                    }
+                } catch (\Exception $e) {
+                    \Log::error("Failed processing bookmark '{$name}': " . $e->getMessage());
+                    continue; // Skip this bookmark but continue with others
+                }
+            }
+
+            // Save back with UTF-8 encoding
+            $updatedXml = $dom->saveXML();
+            if (!$zip->addFromString('word/document.xml', $updatedXml)) {
+                throw new \Exception("Failed to update document.xml in ZIP");
+            }
+
+            $zip->close();
+            \Log::info("Successfully injected bookmarks");
+
+        } catch (\Exception $e) {
+            $zip->close();
+            \Log::error("Bookmark injection failed: " . $e->getMessage());
+            throw new \Exception("Failed to process document template: " . $e->getMessage());
         }
     }
 

@@ -353,4 +353,25 @@ class ContractTemplateController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }
+
+    public function uploadSummary(Request $request)
+    {
+        $request->validate([
+            'summary_file' => 'required|mimes:doc,docx|max:2048',
+            'template_id' => 'required|exists:contract_templates,id'
+        ]);
+
+        $template = ContractTemplate::findOrFail($request->template_id);
+
+        if ($request->hasFile('summary_file')) {
+            $fileName = time() . '_' . $request->file('summary_file')->getClientOriginalName();
+            $path = $request->file('summary_file')->storeAs('templates/template_summaries', $fileName, 'public');
+
+            $template->summary_path = $path;
+            $template->save();
+        }
+
+        return response()->json(['message' => 'Résumé ajouté avec succès.']);
+    }
+
 }

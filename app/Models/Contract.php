@@ -10,7 +10,7 @@ class Contract extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'template_id', 'content','receiptPath','price' ,'notaire_id', 'status','pdf_path','word_path','created_by', 'updated_by'
+        'template_id', 'content','receiptPath','price' ,'notaire_id', 'status','pdf_path','word_path','summary_word_path','summary_pdf_path','created_by', 'updated_by'
     ];
 
     protected $dates = ['deleted_at'];

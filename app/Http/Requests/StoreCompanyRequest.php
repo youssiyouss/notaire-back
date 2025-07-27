@@ -34,6 +34,10 @@ class StoreCompanyRequest extends FormRequest
             'date_rc' => 'nullable|date',
             'wilaya_rc' => 'nullable|string|max:100',
             'nif' => 'nullable|string|max:100',
+            'nis' => 'nullable|string|max:100',
+            'boal' => 'nullable|string|max:100',
+            'ai' => 'nullable|string|max:100',
+            'date_creation' => 'nullable|date',
             'activite_principale' => 'nullable|string|max:255',
             'owner' => 'required|exists:users,id',
         ];

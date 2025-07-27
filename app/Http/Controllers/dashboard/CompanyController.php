@@ -127,6 +127,10 @@ class CompanyController extends Controller
                 'date_rc',
                 'wilaya_rc',
                 'nif',
+                'nis',
+                'boal',
+                'date_creation',
+                'ai',
                 'activite_principale',
                 'owner',
             ]));

@@ -23,8 +23,12 @@ return new class extends Migration
             $table->string('adresse_siege')->nullable();
             $table->string('registre_commerce')->nullable();
             $table->date('date_rc')->nullable();
+            $table->date('date_creation')->nullable();
             $table->string('wilaya_rc')->nullable();
             $table->string('nif')->nullable(); // Numéro d’identification fiscale
+            $table->string('nis')->nullable();
+            $table->string('ai')->nullable();
+            $table->string('boal')->nullable();
             $table->string('activite_principale')->nullable(); // 612103 Banque
             $table->foreignId('owner')->constrained('users')->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');

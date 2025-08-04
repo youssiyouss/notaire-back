@@ -13,6 +13,7 @@ use App\Http\Controllers\dashboard\ContractTemplateController;
 use App\Http\Controllers\dashboard\ClientDocumentController;
 use App\Http\Controllers\dashboard\TaxController;
 use App\Http\Controllers\dashboard\CompanyController;
+use App\Http\Controllers\dashboard\TaskController;
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -82,5 +83,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/companies/search', [CompanyController::class, 'search']);
     Route::resource('companies', CompanyController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
 
+    //Kanban board
+    Route::resource('tasks', TaskController::class);
 });
 

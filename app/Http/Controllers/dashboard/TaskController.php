@@ -4,10 +4,14 @@ namespace App\Http\Controllers\dashboard;
 
 use App\Http\Controllers\Controller;
 use App\Models\Task;
+use App\Models\User;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use App\Events\TaskUpdated;
+use App\Notifications\TaskActionNotification;
 
 class TaskController extends Controller
 {
@@ -87,6 +91,11 @@ class TaskController extends Controller
     public function update(UpdateTaskRequest $request, Task $task)
     {
         try {
+            $data = $request->only([
+                'title', 'description', 'due_date', 'assigned_to', 'contract_id', 'status', 'priorité',
+            ]);
+            // Keep a copy of original values
+            $original = $task->getOriginal(); // before update
             $task->update([
                 'title'        => $request->title ?? $task->title,
                 'description'  => $request->description ?? $task->description,
@@ -96,7 +105,46 @@ class TaskController extends Controller
                 'status'       => $request->status ?? $task->status,
                 'priorité'     => $request->priorité ?? $task->priorité,
                 'updated_by'   => Auth::id(),
-            ]);
+            ]);  // Update model attributes
+            $changes = $task->getChanges();// This only includes changed fields
+
+            $notifiables = [];
+            if (array_key_exists('due_date', $changes)) {
+                $message = [
+                    'key' => 'notif.due_date_updated',
+                    'params' => ['date' => $task->due_date],
+                ];
+                $notifiables[] = User::findOrFail($task->assigned_to);
+
+            } elseif (array_key_exists('assigned_to', $changes)) {
+                $old = User::findOrFail($original['assigned_to']);
+                $new = User::findOrFail($request->assigned_to);
+                $message = [
+                    'key' => 'notif.assigned_to_changed',
+                    'params' => ['name' => $new->nom . ' ' . $new->prenom],
+                ];
+                $notifiables = [$old, $new];
+            } elseif (array_key_exists('status', $changes)) {
+                $message = [
+                    'key' => 'notif.status_changed',
+                    'params' => ['status' => $task->status],
+                ];
+                $notifiables = [User::findOrFail($task->created_by), User::findOrFail($task->assigned_to)];
+
+            } elseif (array_key_exists('priorité', $changes)) {
+                $message = ['key' => 'notif.priority_changed', 'params' => []];
+                $notifiables[] = User::findOrFail($task->assigned_to);
+
+            } else {
+                $message = ['key' => 'notif.details_changed', 'params' => []];
+                $notifiables[] = User::findOrFail($task->assigned_to);
+            }
+
+            if (!empty($notifiables)) {
+                Notification::send($notifiables, new TaskActionNotification($task, $message));
+            }
+
+            broadcast(new TaskUpdated($task,$notifiables))->toOthers();
 
             return response()->json([
                 'message' => 'Tâche mise à jour avec succès.',
@@ -118,7 +166,7 @@ class TaskController extends Controller
      */
     public function destroy(Task $task)
     {
-         try {
+        try {
 
             $task->delete();
 

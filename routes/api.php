@@ -14,6 +14,9 @@ use App\Http\Controllers\dashboard\ClientDocumentController;
 use App\Http\Controllers\dashboard\TaxController;
 use App\Http\Controllers\dashboard\CompanyController;
 use App\Http\Controllers\dashboard\TaskController;
+use Illuminate\Support\Facades\Broadcast;
+
+Broadcast::routes(['middleware' => ['auth:api']]);
 
 /*Mail::raw('Testing email', function ($message) {
     $message->to('yousseramcf@gmail.com')->subject('Test Email');
@@ -85,5 +88,19 @@ Route::middleware('auth:api')->group(function () {
 
     //Kanban board
     Route::resource('tasks', TaskController::class);
+
+    //Notifications
+    Route::get('/notifications', function (Request $request) {
+        return response()->json([
+            'data' => auth()->user()->notifications()->latest()->take(20)->get()// ou ->unreadNotifications  return
+        ]);
+    });
+
+
+
+    Route::post('/notifications/mark-all-read', function (Request $request) {
+        $request->user()->unreadNotifications->markAsRead();
+        return response()->json(['status' => 'success']);
+    });
 });
 

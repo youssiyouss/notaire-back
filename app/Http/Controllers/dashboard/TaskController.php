@@ -129,7 +129,11 @@ class TaskController extends Controller
                     'key' => 'notif.status_changed',
                     'params' => ['status' => $task->status],
                 ];
-                $notifiables = [User::findOrFail($task->created_by), User::findOrFail($task->assigned_to)];
+                $notifiables = collect([
+                    User::findOrFail($task->created_by),
+                    User::findOrFail($task->assigned_to)
+                ])->unique('id')->values();
+
 
             } elseif (array_key_exists('priorité', $changes)) {
                 $message = ['key' => 'notif.priority_changed', 'params' => []];

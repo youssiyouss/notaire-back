@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Hash;
 use RealRashid\SweetAlert\Facades\Alert;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\NewClientNotification;
+use App\Events\NewClient;
 
 class UserController extends Controller
 {
@@ -30,7 +33,7 @@ class UserController extends Controller
             return response()->json([
                 'clients' => $clients,
                 'members' => $members,
-           ], 200);
+            ], 200);
 
         } catch (\Exception $e) {
             Log::error('Fetching error: ' . $e->getMessage());
@@ -38,7 +41,7 @@ class UserController extends Controller
         }
     }
 
-     public function getNotaryOffices()
+    public function getNotaryOffices()
     {
         try {
             $notaires = User::where('role','Notaire')->get();
@@ -46,7 +49,7 @@ class UserController extends Controller
             return response()->json([
 
                 'notaires' => $notaires,
-           ], 200);
+            ], 200);
 
         } catch (\Exception $e) {
             Log::error('Fetching error: ' . $e->getMessage());
@@ -106,6 +109,18 @@ class UserController extends Controller
                 }
             }
 
+            if ($request->role === "Client") {
+                $message = "";
+                $message = [
+                    'key' => 'notif.new_client_added',
+                    'params' => ['name' => $user->nom ." ". $user->prenom],
+                ];
+                $notifiables = User::where('role', '!=', 'Client')->get();
+
+                Notification::send($notifiables, new NewClientNotification($user, $message));
+                broadcast(new NewClient($user,$notifiables))->toOthers();
+            }
+
             $user->save();
             // Return success response
             return response()->json(['message' => 'Employee registered successfully'], 201);
@@ -138,7 +153,6 @@ class UserController extends Controller
      */
     public function update(Request $request,$id)
     {
-        Log::info($request);
         // Validation based on your schema
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
@@ -159,7 +173,6 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
             $requestData = $request->all();
-            Log::info($user->role);
             // Vérifier chaque champ et garder l'ancienne valeur si non fourni
             $user->nom = $requestData['nom'] ?? $user->nom;
             $user->prenom = $requestData['prenom'] ?? $user->prenom;
@@ -189,7 +202,7 @@ class UserController extends Controller
             $user->save();
             return response()->json(['message' => 'Employee modifé avec succéss', 'user' => $user], 200);
 
-         } catch (ValidationException $e) {
+        } catch (ValidationException $e) {
             Log::error('Database Error: ' . $e->getMessage());
             return response()->json(['error' => $e->errors()], Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (QueryException $e) {

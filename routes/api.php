@@ -96,6 +96,11 @@ Route::middleware('auth:api')->group(function () {
         ]);
     });
 
+    Route::post('/notifications/{id}/read', function ($id) {
+        $notification = Auth::user()->notifications()->findOrFail($id);
+        $notification->markAsRead();
+        return response()->json(['status' => 'read']);
+    });
 
 
     Route::post('/notifications/mark-all-read', function (Request $request) {

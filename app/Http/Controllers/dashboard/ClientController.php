@@ -18,6 +18,9 @@ use App\Models\ClientDocument;
 use Error;
 use Exception;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\NewClientNotification;
+use App\Events\NewClient;
 require_once base_path('vendor/thiagoalessio/tesseract_ocr/src/TesseractOCR.php');
 use Imagick;
 
@@ -60,8 +63,6 @@ class ClientController extends Controller
      */
     public function store(Request $request)
     {
-        Log::info('Data:', ['data' => $request->all()]);
-
         $validator = Validator::make($request->all(), [
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
@@ -110,7 +111,7 @@ class ClientController extends Controller
                 'emploi' => $request->emploi,
             ]);
 
-             if ($request->hasFile('picture')) {
+            if ($request->hasFile('picture')) {
                 $picName = $request->nom . '.' . time() . '.' . $request->file('picture')->getClientOriginalExtension();
                 $path = $request->file('picture')->storeAs('avatars', $picName, 'public');
                 if (Storage::disk('public')->exists('avatars/' . $picName)) {
@@ -119,6 +120,17 @@ class ClientController extends Controller
                 } else {
                     return response()->json(['message' => 'File could not be saved'], 500);
                 }
+            }
+            if ($request->role === "Client") {
+                $message = "";
+                $message = [
+                    'key' => 'notif.new_client_added',
+                    'params' => ['name' => $user->nom ." ". $user->prenom],
+                ];
+                $notifiables = User::where('role', '!=', 'Client')->get();
+
+                Notification::send($notifiables, new NewClientNotification($user, $message));
+                broadcast(new NewClient($user,$notifiables))->toOthers();
             }
 
             DB::commit();

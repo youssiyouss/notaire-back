@@ -9,19 +9,16 @@ use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Support\Facades\Auth;
 
-class TaskActionNotification extends Notification
+class NewClientNotification extends Notification
 {
     use Queueable;
 
-    public $task;
+    public $user;
     public $message;
 
-    /**
-     * Create a new notification instance.
-     */
-    public function __construct($task, $message)
+    public function __construct($user, $message)
     {
-        $this->task = $task;
+        $this->user = $user;
         $this->message = $message;
     }
 
@@ -54,24 +51,25 @@ class TaskActionNotification extends Notification
     public function toArray(object $notifiable): array
     {
         return [
-            'task_id'    => $this->task->id,
-            'title' => $this->task->title,
-            'link' => "gestionnaire-de-taches",
-            'message'    => $this->message,
+            'title' => "Nouveau client ajouté",
+            'message' => $this->message,
+            'user' => $this->user,
+            'link' => "clients/{$this->user->id}",
             'created_by' => Auth::id(),
             'user_nom'  =>  Auth::user()->nom,
             'user_prenom' => Auth::user()->prenom,
             'user_picture' => Auth::user()->picture,
-            'created_at' => now(),
+            'created_at' => now()
         ];
     }
 
     public function toBroadcast($notifiable)
     {
         return new \Illuminate\Notifications\Messages\BroadcastMessage([
-            'task_id'    => $this->task->id,
-            'title' => $this->task->title,
-            'message'    => $this->message,
+            'title' => "Nouveau client ajouté",
+            'message' => $this->message,
+            'user' => $this->user,
         ]);
     }
+
 }

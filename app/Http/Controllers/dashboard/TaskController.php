@@ -12,9 +12,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use App\Events\TaskUpdated;
 use App\Notifications\TaskActionNotification;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class TaskController extends Controller
 {
+    
+    use AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
@@ -46,6 +50,7 @@ class TaskController extends Controller
     public function store(StoreTaskRequest $request)
     {
         try {
+            $this->authorize('create', Task::class);
             $task = Task::create([
                 'title'            => $request->title,
                 'description'      => $request->description,
@@ -90,7 +95,9 @@ class TaskController extends Controller
      */
     public function update(UpdateTaskRequest $request, Task $task)
     {
-        try {
+        try { 
+            $this->authorize('update', $task);
+
             $data = $request->only([
                 'title', 'description', 'due_date', 'assigned_to', 'contract_id', 'status', 'priorité',
             ]);
@@ -171,6 +178,8 @@ class TaskController extends Controller
     public function destroy(Task $task)
     {
         try {
+            
+            $this->authorize('delete', $task);
 
             $task->delete();
 

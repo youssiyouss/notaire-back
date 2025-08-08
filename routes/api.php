@@ -39,7 +39,9 @@ Route::get('/user', [AuthController::class, 'user']);
 Route::get('/verify-email/{token}', [ AuthController::class, 'verifyEmail']);
 Route::post('/verification/resend/', [AuthController::class, 'resendVerificationEmail']);
 Route::post('/change-password', [AuthController::class, 'changePassword']);
-
+Route::middleware('auth:api')->get('/auth_user', function() {
+    return response()->json(['user' => Auth::user()]);
+});
 
 Route::middleware('auth:api')->group(function () {
     Route::resource('users', UserController::class);

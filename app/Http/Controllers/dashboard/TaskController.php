@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use App\Events\TaskUpdated;
 use App\Notifications\TaskActionNotification;
+use App\Events\NewTask;
+use App\Notifications\NewTaskNotification;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class TaskController extends Controller
@@ -25,7 +27,12 @@ class TaskController extends Controller
     public function index()
     {
         try {
-            $tasks = Task::with(['assignedTo', 'contract.template','creator','editor'])->get();
+            $user = auth()->user();
+
+            $tasks = Task::with(['assignedTo', 'contract.template','creator','editor'])
+                        ->where('assigned_to', $user->id)
+                        ->orWhere('created_by', $user->id)
+                        ->get();
 
             return response()->json([
                 'tasks' => $tasks->groupBy('status')
@@ -60,6 +67,18 @@ class TaskController extends Controller
                 'status'           => 'à_faire',
                 'created_by'       => Auth::id(),
             ]);
+
+                $message = [
+                    'key' => 'notif.new_task',
+                    'params' => ['task' => $task->title],
+                ];
+                $notifiable = User::findOrFail($task->assigned_to);
+            if (!empty($notifiable)) {
+                Notification::send($notifiable, new NewTaskNotification($task, $message));
+            }
+
+            broadcast(new NewTask($task,$notifiable))->toOthers();
+
 
             return response()->json([
                 'message' => __('Task created successfully.'),

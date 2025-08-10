@@ -110,7 +110,6 @@ class UserController extends Controller
             }
 
             if ($request->role === "Client") {
-                $message = "";
                 $message = [
                     'key' => 'notif.new_client_added',
                     'params' => ['name' => $user->nom ." ". $user->prenom],

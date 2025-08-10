@@ -6,25 +6,23 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\SerializesModels; 
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
-class NewTask implements ShouldBroadcastNow
+class NewEducationAsset implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $task;
-    public $notifiable;
+    public $notifiables;
 
     /**
      * Create a new event instance.
      */
-    public function __construct($task, $notifiable)
-    {
-        $this->task = $task;
-        $this->notifiable = $notifiable;
+    public function __construct($notifiables)
+    { 
+        $this->notifiables = $notifiables;
     }
 
 
@@ -33,18 +31,21 @@ class NewTask implements ShouldBroadcastNow
      *
      * @return array<int, \Illuminate\Broadcasting\Channel>
      */
-    public function broadcastOn(): array
+    public function broadcastOn()
     {
-        return [
-            new PrivateChannel('channel-name'),
-        ];
-        if ($this->notifiable && isset($this->notifiable->id)) {
-            return new PrivateChannel('App.Models.User.' . $this->notifiable->id);
+        $channels = [];
+
+        foreach ($this->notifiables as $notifiable) {
+            if ($notifiable && isset($notifiable->id)) {
+                $channels[] = new PrivateChannel('App.Models.User.' . $notifiable->id);
+            }
         }
+
+        return $channels;
     }
 
     public function broadcastAs()
     {
-        return 'NewTask';
+        return 'NewDocAdded';
     }
 }

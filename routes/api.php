@@ -14,6 +14,8 @@ use App\Http\Controllers\dashboard\ClientDocumentController;
 use App\Http\Controllers\dashboard\TaxController;
 use App\Http\Controllers\dashboard\CompanyController;
 use App\Http\Controllers\dashboard\TaskController;
+use App\Http\Controllers\dashboard\EducationalDocController;
+use App\Http\Controllers\dashboard\EducationalVideoController;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::routes(['middleware' => ['auth:api']]);
@@ -104,10 +106,22 @@ Route::middleware('auth:api')->group(function () {
         return response()->json(['status' => 'read']);
     });
 
-
     Route::post('/notifications/mark-all-read', function (Request $request) {
         $request->user()->unreadNotifications->markAsRead();
         return response()->json(['status' => 'success']);
     });
+
+    //educational pdfs
+    Route::resource('doc-educationel', EducationalDocController::class);
+    Route::get('doc-educationel/trash', [EducationalDocController::class, 'trash']);
+    Route::patch('doc-educationel/{id}/restore', [EducationalDocController::class, 'restore']);
+    Route::delete('doc-educationel/{id}/force', [EducationalDocController::class, 'forceDelete']);
+
+    //educational videos
+    Route::resource('video-educationel', EducationalVideoController::class);
+    Route::get('video-educationel/trash', [EducationalVideoController::class, 'trash']);
+    Route::patch('video-educationel/{id}/restore', [EducationalVideoController::class, 'restore']);
+    Route::delete('video-educationel/{id}/force', [EducationalVideoController::class, 'forceDelete']);
+
 });
 

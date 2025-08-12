@@ -10,22 +10,23 @@ use App\Models\EducationalVideo;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB; 
 use Illuminate\Support\Facades\Log; 
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\NewEducationalAssetNotification;
 use App\Events\NewEducationAsset;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class EducationalVideoController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
         try {
-           // $docs = EducationalVideo::with('creator','editor')->paginate(15);
             $videos = EducationalVideo::with('creator','editor')->latest()->paginate(15);
             return response()->json(['videos' => $videos]);
 
@@ -40,6 +41,8 @@ class EducationalVideoController extends Controller
      */
     public function store(StoreEducationalVideoRequest $request)
     {
+        $this->authorize('create', EducationalVideo::class);
+
         DB::beginTransaction();
         try{
             $data = $request->validated();
@@ -56,17 +59,15 @@ class EducationalVideoController extends Controller
                 $video->thumbnail = $this->youtubeThumbnail($data['video_url']);
             } else {
                 // fichier local
-                $file = $request->file('video_path');
-                $ext = $file->getClientOriginalExtension();
-                $name = Str::uuid() . '.' . $ext;
-                // stocke dans disk 'videos' configuré localement 
-
+                $file = $request->file('video_path'); 
+                $name =  time() . '_' . $file->getClientOriginalName();
                 $video->video_path = $file->storeAs('educational_videos', $name, 'public'); 
                 // durée & miniatures : idéalement via job avec FFmpeg
+
                 // Handle file upload if a new image is provided
                 if ($request->hasFile('thumbnail')) {
-                    $image = $request->file('thumbnail');
-                    $imageName = Str::uuid() . '.' . $image->getClientOriginalExtension();
+                    $image = $request->file('thumbnail'); 
+                    $imageName = time() . '_' . $image->getClientOriginalName();
                     $path = $image->storeAs('video_thumbnails', $imageName, 'public');
                     $video->thumbnail = $path;  // Save file path
                 }
@@ -119,7 +120,15 @@ class EducationalVideoController extends Controller
      */
     public function show(string $id)
     {
-        //
+        try {
+            $doc = EducationalVideo::with('creator','editor')->findOrFail($id);
+
+            return response()->json($doc, 200);
+
+        } catch (\Exception $e) {
+            Log::error('Fetching error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
     }
 
     /**
@@ -127,8 +136,70 @@ class EducationalVideoController extends Controller
      */
     public function update(UpdateEducationalVideoRequest $request, string $id)
     {
-        //
+        
+        DB::beginTransaction();
+        
+        try {
+            $validated = $request->validated();
+            $video = EducationalVideo::findOrFail($id);
+            $this->authorize('update', $video);
+
+            // Basic fields
+            $video->title       = $validated['title'] ?? $video->title;
+            $video->description = $validated['description'] ?? $video->description;
+            $video->audience    = $validated['audience'] ?? $video->audience;
+            $video->category    = $validated['category'] ?? $video->category;
+            $video->duration    = isset($validated['duration']) ? (int) $validated['duration'] : $video->duration;
+            $video->source      = $validated['source'] ?? $video->source;
+            $video->video_url   = $validated['video_url'] ?? $video->video_url;
+            $video->updated_by = Auth::id();
+
+            // Handle video upload
+            if ($request->hasFile('video_path') && $validated['source'] == 'Ordinateur') {
+                if (!empty($video->video_path) && Storage::disk('public')->exists($video->video_path)) {
+                    Storage::disk('public')->delete($video->video_path);
+                }
+                $file = $request->file('video_path'); 
+                $name =  time() . '_' . $file->getClientOriginalName();
+                $video->video_path = $file->storeAs('educational_videos', $name, 'public'); 
+                $video->video_url = null; 
+                $video->thumbnail = null; 
+            }
+            else if($request->video_url && $validated['source'] == 'Youtube'){
+                $video->thumbnail = $this->youtubeThumbnail($validated['video_url']);
+                if (!empty($video->video_path) && Storage::disk('public')->exists($video->video_path)) {
+                    Storage::disk('public')->delete($video->video_path);
+                }
+                $video->video_path = null;  
+            }
+            if($request->hasFile('thumbnail')){
+                if (!empty($video->thumbnail) && Storage::disk('public')->exists($video->thumbnail)) {
+                    Storage::disk('public')->delete($video->thumbnail);
+                }
+                $image = $request->file('thumbnail');
+                $imageName = time() . '_' . $image->getClientOriginalName();
+                $path = $image->storeAs('video_thumbnails', $imageName, 'public');
+                $video->thumbnail = $path;  // Save file path
+            }
+
+            $video->save();
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Video updated successfully',
+                'data'    => $video
+            ], 200);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to update video',
+                'error'   => $e->getMessage()
+            ], 500);
+        }
     }
+
 
     /**
      * Remove the specified resource from storage.
@@ -136,6 +207,7 @@ class EducationalVideoController extends Controller
     public function destroy(string $id)
     {
         $video = EducationalVideo::findOrFail($id);
+        $this->authorize('delete', $video);
         $video->delete();
         return response()->json(['message' => 'Deleted']);
     }

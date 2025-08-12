@@ -15,10 +15,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\NewEducationalAssetNotification;
 use App\Events\NewEducationAsset;
-
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class EducationalDocController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
@@ -42,6 +44,7 @@ class EducationalDocController extends Controller
      */
     public function store(StoreEducationalDocRequest $request)
     {
+        $this->authorize('create', EducationalDocs::class);
         DB::beginTransaction();
 
         try {
@@ -89,19 +92,14 @@ class EducationalDocController extends Controller
                 'content' => $content,
             ], 201);
 
-        } catch (\Throwable $e) {
+        } catch (Exception $e) {
             DB::rollBack();
-
-            Log::error('Erreur lors de la création du document', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
 
             return response()->json([
                 'message' => 'Une erreur est survenue lors de la création du document.',
+                'error'   => $e->getMessage()
             ], 500);
         }
-        
     }
 
     /**
@@ -130,6 +128,7 @@ class EducationalDocController extends Controller
         try {
             $data = $request->validated();
             $doc = EducationalDocs::findOrFail($id);
+            $this->authorize('update', $doc);
 
             // Ajouter l'utilisateur connecté comme modificateur
             $data['updated_by'] = Auth::id();
@@ -161,16 +160,13 @@ class EducationalDocController extends Controller
                 'document' => $doc,
             ], 200);
 
-        } catch (\Throwable $e) {
+        
+        } catch (Exception $e) {
             DB::rollBack();
 
-            Log::error('Erreur lors de la mise à jour du document éducatif', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
             return response()->json([
-                'message' => 'Une erreur est survenue lors de la mise à jour du document éducatif.',
+                'message' => 'Une erreur est survenue lors de la création du document.',
+                'error'   => $e->getMessage()
             ], 500);
         }
     }
@@ -182,6 +178,7 @@ class EducationalDocController extends Controller
     {
         try {
             $Doc = EducationalDocs::FindOrFail($id);
+            $this->authorize('delete', $Doc);
             $Doc->delete();
 
             return response()->json(['message' => 'Employee deleted successfully'], 201);

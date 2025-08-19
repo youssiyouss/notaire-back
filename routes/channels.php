@@ -10,3 +10,6 @@ Broadcast::channel('clients', function ($user) {
     return $user->role !== 'Client';
 });
 
+Broadcast::channel('chat.{userId}', function ($user, $userId) {
+    return (int) $user->id === (int) $userId;
+});

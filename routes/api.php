@@ -16,6 +16,7 @@ use App\Http\Controllers\dashboard\CompanyController;
 use App\Http\Controllers\dashboard\TaskController;
 use App\Http\Controllers\dashboard\EducationalDocController;
 use App\Http\Controllers\dashboard\EducationalVideoController;
+use App\Http\Controllers\dashboard\ChatController;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::routes(['middleware' => ['auth:api']]);
@@ -122,6 +123,13 @@ Route::middleware('auth:api')->group(function () {
     Route::get('video-educationel/trash', [EducationalVideoController::class, 'trash']);
     Route::patch('video-educationel/{id}/restore', [EducationalVideoController::class, 'restore']);
     Route::delete('video-educationel/{id}/force', [EducationalVideoController::class, 'forceDelete']);
+
+    //Chat
+    Route::get('/chat/{userId}', [ChatController::class, 'index']);
+    Route::post('/chat', [ChatController::class, 'store']);
+    Route::get('chat/unread-count', [ChatController::class, 'unreadCount']);
+    Route::get('chat/mark-as-read/{userId}', [ChatController::class, 'markAsRead']);
+
 
 });
 

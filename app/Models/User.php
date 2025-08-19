@@ -95,4 +95,12 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return $this->hasMany(Company::class, 'owner');
     }
+
+    public function unreadMessages()
+    {
+        return $this->hasMany(Chat::class, 'sender_id')
+            ->where('receiver_id', auth()->id())
+            ->where('is_read', 0);
+    }
+
 }

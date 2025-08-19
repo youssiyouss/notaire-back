@@ -37,7 +37,7 @@ class EducationalDocPolicy
      */
     public function update(User $user, EducationalDocs $educationalDocs): bool
     {
-        return $user->role !== 'Client';
+        return in_array($user->role, ['Admin', 'Notaire', 'Assistant Notaire' ,'Receptionniste']);
     }
 
     /**

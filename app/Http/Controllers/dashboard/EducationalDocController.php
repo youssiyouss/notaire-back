@@ -30,21 +30,21 @@ class EducationalDocController extends Controller
             $docs = EducationalDocs::with('creator','editor')->paginate(15);
 
             return response()->json([
-                'docs' => $docs, 
+                'docs' => $docs,
             ], 200);
 
         } catch (\Exception $e) {
             Log::error('Fetching error: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 422);
         }
-    } 
+    }
 
     /**
      * Store a newly created resource in storage.
      */
     public function store(StoreEducationalDocRequest $request)
     {
-        $this->authorize('create', EducationalDocs::class);
+       // $this->authorize('create',Auth::id());
         DB::beginTransaction();
 
         try {
@@ -67,7 +67,7 @@ class EducationalDocController extends Controller
 
             // Création de l'entreprise
             $content = EducationalDocs::create($data);
-            
+
             //send notifiactions
                 $message = [
                     'key' => $content->title,
@@ -128,7 +128,7 @@ class EducationalDocController extends Controller
         try {
             $data = $request->validated();
             $doc = EducationalDocs::findOrFail($id);
-            $this->authorize('update', $doc);
+           // $this->authorize('update', $doc);
 
             // Ajouter l'utilisateur connecté comme modificateur
             $data['updated_by'] = Auth::id();
@@ -160,7 +160,7 @@ class EducationalDocController extends Controller
                 'document' => $doc,
             ], 200);
 
-        
+
         } catch (Exception $e) {
             DB::rollBack();
 

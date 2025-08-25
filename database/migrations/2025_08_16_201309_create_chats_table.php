@@ -16,8 +16,10 @@ return new class extends Migration
             $table->foreignId('sender_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('receiver_id')->constrained('users')->onDelete('cascade');
             $table->text('content');
-            $table->boolean('is_read')->default(false); 
+            $table->boolean('is_read')->default(false);
             $table->timestamp('read_at')->nullable();
+            $table->enum('type', ['text', 'image', 'video', 'document'])->default('text');
+            $table->string('file_url')->nullable();
             $table->timestamps();
         });
     }

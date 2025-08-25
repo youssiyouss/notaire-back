@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Chat extends Model
 {
 
-    protected $fillable = ['sender_id', 'receiver_id', 'content', 'is_read'];
+    protected $fillable = ['sender_id', 'receiver_id', 'content', 'type','file_url','is_read'];
 
     public function sender() {
         return $this->belongsTo(User::class, 'sender_id');

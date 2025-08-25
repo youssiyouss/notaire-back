@@ -127,8 +127,10 @@ Route::middleware('auth:api')->group(function () {
     //Chat
     Route::get('/chat/{userId}', [ChatController::class, 'index']);
     Route::post('/chat', [ChatController::class, 'store']);
+    Route::post('/chat/upload', [ChatController::class, 'upload']);
     Route::get('chat/unread-count', [ChatController::class, 'unreadCount']);
     Route::get('chat/mark-as-read/{userId}', [ChatController::class, 'markAsRead']);
+    Route::get('/chat/download/{id}', [ChatController::class, 's'])->name('chat.download');
 
 
 });

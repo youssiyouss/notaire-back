@@ -43,6 +43,88 @@ class ChatController extends Controller
         }
     }
 
+
+    public function getUsersList($userId)
+    {
+        try {
+            // Subquery: last message content (excluding deleted ones)
+            $lastMessageSub = Chat::select('content')
+                ->where(function($q) use ($userId) {
+                    $q->whereColumn('chats.sender_id', 'users.id')
+                        ->where('chats.receiver_id', $userId)
+                        ->where('deleted_by_receiver', false);
+                })
+                ->orWhere(function($q) use ($userId) {
+                    $q->whereColumn('chats.receiver_id', 'users.id')
+                        ->where('chats.sender_id', $userId)
+                        ->where('deleted_by_sender', false);
+                })
+                ->orderByDesc('chats.id')
+                ->limit(1);
+
+            // Subquery: last message date (excluding deleted ones)
+            $lastMessageAtSub = Chat::select('created_at')
+                ->where(function($q) use ($userId) {
+                    $q->whereColumn('chats.sender_id', 'users.id')
+                        ->where('chats.receiver_id', $userId)
+                        ->where('deleted_by_receiver', false);
+                })
+                ->orWhere(function($q) use ($userId) {
+                    $q->whereColumn('chats.receiver_id', 'users.id')
+                        ->where('chats.sender_id', $userId)
+                        ->where('deleted_by_sender', false);
+                })
+                ->orderByDesc('chats.id')
+                ->limit(1);
+
+            // Users with active chats (exclude fully deleted conversations)
+            $chats = User::where('id', '!=', $userId)
+                ->where(function($q) use ($userId) {
+                    $q->whereHas('sentChats', function($q2) use ($userId) {
+                            $q2->where('receiver_id', $userId)
+                            ->where('deleted_by_receiver', false);
+                        })
+                    ->orWhereHas('receivedChats', function($q2) use ($userId) {
+                            $q2->where('sender_id', $userId)
+                            ->where('deleted_by_sender', false);
+                        });
+                })
+                ->withCount([
+                    'unreadMessages as unread_messages_count' => function($q) use ($userId) {
+                        $q->where('receiver_id', $userId)
+                        ->where('deleted_by_receiver', false);
+                    }
+                ])
+                ->addSelect([
+                    'last_message' => $lastMessageSub,
+                    'last_message_at' => $lastMessageAtSub,
+                ])
+                ->orderByDesc('last_message_at')
+                ->paginate(20);
+
+            // All contacts (colleagues + clients) - exclude me
+            $contacts = User::where('id', '!=', $userId)
+                ->withCount([
+                    'unreadMessages as unread_messages_count' => function($q) use ($userId) {
+                        $q->where('receiver_id', $userId)
+                        ->where('deleted_by_receiver', false);
+                    }
+                ])
+                ->orderBy('role')
+                ->paginate(20);
+
+            return response()->json([
+                'chats' => $chats,
+                'contacts' => $contacts,
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Fetching error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+
     public function store(Request $request)
     {
         try{
@@ -116,6 +198,27 @@ class ChatController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $chat = Chat::where([['receiver_id',$id],['sender_id',auth()->id()]])
+                ->orWhere([['receiver_id',auth()->id()],['sender_id',$id]])
+                ->get();
+            foreach ($chat as $c) {
+                $c->deleted_by_sender = true;
+                $c->save();
+            }
+
+            return response()->json(['message' => 'Client deleted successfully'], 201);
+        }catch (\Error $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch(\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
     }
 
     public function deleteForEveryone($id)

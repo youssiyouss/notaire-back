@@ -27,8 +27,8 @@ class UserController extends Controller
     public function index()
     {
         try {
-            $clients = User::withCount('unreadMessages')->where('role','Client')->paginate(20);
-            $members = User::withCount('unreadMessages')->where('role','!=','Client')->paginate(20);
+            $clients = User::where('role','Client')->paginate(20);
+            $members = User::where('role','!=','Client')->paginate(20);
 
             return response()->json([
                 'clients' => $clients,

@@ -103,4 +103,24 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->where('is_read', 0);
     }
 
+
+    // To get all chats where the user is either sender or receiver
+    public function chats()
+    {
+        return $this->hasMany(Chat::class, 'sender_id')
+            ->orWhere('receiver_id', $this->id);
+    }
+
+    public function sentChats()
+    {
+        return $this->hasMany(Chat::class, 'sender_id');
+    }
+
+    public function receivedChats()
+    {
+        return $this->hasMany(Chat::class, 'receiver_id');
+    }
+
+
+
 }

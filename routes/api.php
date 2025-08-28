@@ -126,8 +126,11 @@ Route::middleware('auth:api')->group(function () {
 
     //Chat
     Route::get('/chat/{userId}', [ChatController::class, 'index']);
+    Route::delete('/chat/{msgID}/retirer', [ChatController::class, 'deleteForEveryone']);
+    Route::delete('/chat/{msgID}/supprimer', [ChatController::class, 'deleteForMe']);
     Route::post('/chat', [ChatController::class, 'store']);
     Route::post('/chat/upload', [ChatController::class, 'upload']);
+    Route::post('/chat/forward', [ChatController::class, 'forward']);
     Route::get('chat/unread-count', [ChatController::class, 'unreadCount']);
     Route::get('chat/mark-as-read/{userId}', [ChatController::class, 'markAsRead']);
     Route::get('/chat/download/{id}', [ChatController::class, 's'])->name('chat.download');

@@ -27,10 +27,12 @@ class MessageRead implements ShouldBroadcastNow
     /**
      * Get the channels the event should broadcast on.
      */
-    public function broadcastOn(): PrivateChannel
-    {
-        // sender gets notified when receiver reads
-        return new PrivateChannel('chat.' . $this->senderId);
+    public function broadcastOn() {
+        return  new PrivateChannel("chat.{$this->senderId}");
+    }
+
+    public function broadcastAs() {
+        return 'MessageRead';
     }
 
     /**
@@ -42,13 +44,5 @@ class MessageRead implements ShouldBroadcastNow
             'readerId' => $this->readerId,
             'senderId' => $this->senderId,
         ];
-    }
-
-    /**
-     * Custom event name for frontend.
-     */
-    public function broadcastAs(): string
-    {
-        return 'message.read';
     }
 }

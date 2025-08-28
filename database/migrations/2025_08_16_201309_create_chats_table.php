@@ -20,6 +20,8 @@ return new class extends Migration
             $table->timestamp('read_at')->nullable();
             $table->enum('type', ['text', 'image', 'video', 'document'])->default('text');
             $table->string('file_url')->nullable();
+            $table->boolean('deleted_by_sender')->default(false);
+            $table->boolean('deleted_by_receiver')->default(false);
             $table->timestamps();
         });
     }

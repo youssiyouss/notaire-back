@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Notifications\NewEducationalAssetNotification;
 use App\Events\ChatMessage;
 use App\Events\MessageRead;
-
+use App\Events\MessageDeleted;
 
 class ChatController extends Controller
 {
@@ -25,10 +25,12 @@ class ChatController extends Controller
     {
         try {
             $messages = Chat::where(function ($q) use ($userId) {
-                            $q->where([['sender_id', auth()->id()],['receiver_id', $userId]]);
+                            $q->where([['sender_id', auth()->id()], ['receiver_id', $userId]])
+                            ->where('deleted_by_sender', false);
                         })
             ->orWhere(function ($q) use ($userId) {
-                            $q->where([['sender_id', $userId],['receiver_id', auth()->id()]]);
+                            $q->where([['sender_id', $userId], ['receiver_id', auth()->id()]])
+                            ->where('deleted_by_receiver', false);
                         })
             ->orderBy('id', 'desc')
             ->paginate(20); // 20 messages per page, descending
@@ -62,7 +64,6 @@ class ChatController extends Controller
 
     public function markAsRead($userId)
     {
-        Log::info("Marked as read & event fired");
 
         Chat::where('receiver_id', auth()->id())
             ->where('sender_id', $userId)
@@ -90,29 +91,64 @@ class ChatController extends Controller
     }
 
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function deleteForMe($id)
     {
-        //
+        try{
+
+            $chat = Chat::findOrFail($id);
+
+            if ($chat->sender_id === auth()->id()) {
+                $chat->deleted_by_sender = true;
+            } elseif ($chat->receiver_id === auth()->id()) {
+                $chat->deleted_by_receiver = true;
+            } else {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            $chat->save();
+
+            return response()->json(['message' => 'Message supprimé pour vous uniquement']);
+        }catch (\Error $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch(\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function deleteForEveryone($id)
     {
-        //
+        try{
+            $chat = Chat::findOrFail($id);
+
+            // Only sender can "retirer"
+            if ($chat->sender_id !== auth()->id()) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            // delete file if attached
+            if ($chat->file_url && $chat->type !== "text") {
+                Storage::disk('public')->delete($chat->file_url);
+            }
+
+            $chat->delete();
+            // event(new MessageDeleted($chat->id, $chat->receiver_id));
+            broadcast(new MessageDeleted($chat->id, $chat->receiver_id, $chat->sender_id))->toOthers();
+
+
+            return response()->json(['message' => 'Message retiré pour tout le monde']);
+
+        }catch (\Error $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch(\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
-    }
 
     public function upload(Request $request)
     {
@@ -177,5 +213,29 @@ class ChatController extends Controller
 
         return Storage::disk('public')->download($chat->file_url, $chat->content);
     }
+
+    public function forward(Request $request)
+    {
+        $request->validate([
+            'message_id' => 'required|exists:chats,id',
+            'receiver_id' => 'required|exists:users,id',
+        ]);
+
+        $original = Chat::findOrFail($request->message_id);
+
+        $forwarded = Chat::create([
+            'sender_id'   => auth()->id(),
+            'receiver_id' => $request->receiver_id, // ✅ change here
+            'content'     => $original->content,
+            'type'        => $original->type,
+            'file_url'    => $original->file_url,  // ✅ reuse file path
+        ]);
+
+        $forwarded->load('sender');
+        broadcast(new ChatMessage($forwarded, $request->receiver_id))->toOthers();
+
+        return response()->json(['chat' => $forwarded], 201);
+    }
+
 
 }

@@ -21,7 +21,7 @@ class EducationalVideoPolicy
      */
     public function view(User $user, EducationalVideo $educationalVideo): bool
     {
-        return $educationalVideo->audience === 'Tout' || $user->role === 'Admin';
+        return $educationalVideo->audience === 'Tout' || in_array($user->role, ['Admin', 'Notaire']);;
     }
 
     /**
@@ -45,7 +45,7 @@ class EducationalVideoPolicy
      */
     public function delete(User $user, EducationalVideo $educationalVideo): bool
     {
-        return $user->role === 'Admin' || $video->created_by === $user->id;
+        return $user->role === 'Admin' || $user->role === 'Notaire' || $video->created_by === $user->id;
     }
 
     /**
@@ -53,7 +53,7 @@ class EducationalVideoPolicy
      */
     public function restore(User $user, EducationalVideo $educationalVideo): bool
     {
-        return $user->role === 'Admin' || $video->created_by === $user->id;
+        return $user->role === 'Admin' || $user->role === 'Notaire' || $video->created_by === $user->id;
     }
 
     /**

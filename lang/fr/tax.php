@@ -2,5 +2,5 @@
 
 return [
 
-   "no_contracts" =>"Aucun contrat généré pendant cette période"
+    "no_contracts" =>"Aucun contrat généré pendant cette période"
 ];

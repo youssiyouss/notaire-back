@@ -12,9 +12,14 @@ use App\Http\Requests\StoreCompanyRequest;
 use App\Http\Requests\UpdateCompanyRequest;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
 
 class CompanyController extends Controller
 {
+
+    use AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
@@ -170,7 +175,9 @@ class CompanyController extends Controller
     {
         try {
             $company = Company::FindOrFail($company->id);
-           /* if(!$company->logo && $company->logo != 'assets/images/default_avatar.png'){
+            $this->authorize('delete', $company);
+
+            /* if(!$company->logo && $company->logo != 'assets/images/default_avatar.png'){
                 Storage::disk('public')->delete($company->logo);
             }*/
             $company->delete();

@@ -17,6 +17,7 @@ use App\Http\Controllers\dashboard\TaskController;
 use App\Http\Controllers\dashboard\EducationalDocController;
 use App\Http\Controllers\dashboard\EducationalVideoController;
 use App\Http\Controllers\dashboard\ChatController;
+use App\Http\Controllers\dashboard\AttendanceController;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::routes(['middleware' => ['auth:api']]);
@@ -48,6 +49,7 @@ Route::middleware('auth:api')->get('/auth_user', function() {
 
 Route::middleware('auth:api')->group(function () {
     Route::resource('users', UserController::class);
+    Route::get('/users/{id}/suivi',  [UserController::class, 'suivi']);
     Route::resource('clients', ClientController::class);
     Route::resource('user-documents',ClientDocumentController::class);
 
@@ -136,6 +138,10 @@ Route::middleware('auth:api')->group(function () {
     Route::get('chat/unread-count', [ChatController::class, 'unreadCount']);
     Route::get('chat/mark-as-read/{userId}', [ChatController::class, 'markAsRead']);
     Route::get('/chat/download/{id}', [ChatController::class, 's'])->name('chat.download');
+
+    //Attendance
+    Route::resource('attendances', AttendanceController::class);
+    Route::get('/attendances/{id}/get',  [AttendanceController::class, 'getAttendances']);
 
 
 });

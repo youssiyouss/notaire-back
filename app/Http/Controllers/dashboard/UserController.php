@@ -14,12 +14,16 @@ use Illuminate\Support\Facades\Hash;
 use RealRashid\SweetAlert\Facades\Alert;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\NewClientNotification;
 use App\Events\NewClient;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class UserController extends Controller
 {
+
+    use AuthorizesRequests;
 
     /**
      * Display a listing of the resource.
@@ -27,6 +31,8 @@ class UserController extends Controller
     public function index()
     {
         try {
+//            $this->authorize('viewAny', User::class);
+
             $clients = User::where('role','Client')->paginate(20);
             $members = User::where('role','!=','Client')->paginate(20);
 
@@ -64,6 +70,8 @@ class UserController extends Controller
     public function store(Request $request)
     {
         try{
+            $this->authorize('create', User::class);
+
             // Validate the basic registration data
             $validator =$request->validate([
                 'nom' => 'required|string|max:255',
@@ -139,12 +147,10 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        try {
             $user = User::findOrFail($id);
+            $this->authorize('view', $user);
+
             return response()->json(['user' => $user], 200);
-        } catch (\Throwable $th) {
-            return response()->json(['error' => 'User not found.'], 404);
-        }
     }
 
     /**
@@ -152,6 +158,7 @@ class UserController extends Controller
      */
     public function update(Request $request,$id)
     {
+
         // Validation based on your schema
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
@@ -171,6 +178,8 @@ class UserController extends Controller
 
         try {
             $user = User::findOrFail($id);
+            $this->authorize('update', $user);
+
             $requestData = $request->all();
             // Vérifier chaque champ et garder l'ancienne valeur si non fourni
             $user->nom = $requestData['nom'] ?? $user->nom;
@@ -221,6 +230,8 @@ class UserController extends Controller
     {
         try {
             $user = User::FindOrFail($id);
+            $this->authorize('delete', $user);
+
             if($user->picture != 'assets/images/default_avatar.png'){
                 Storage::disk('public')->delete($user->picture);
             }
@@ -234,5 +245,24 @@ class UserController extends Controller
         }catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
+    }
+
+    public function suivi(Request $request, $id)
+    {
+            $user = User::findOrFail($id);
+            $this->authorize('viewAny', Auth::user());
+
+            // Optional filters
+            $from = $request->query('from');
+            $to   = $request->query('to');
+
+            $preformance = $user->getPerformance($from, $to);
+
+
+            return response()->json([
+                'employee' => $user->load("creator"),
+                'performance' => $preformance
+            ]);
+
     }
 }

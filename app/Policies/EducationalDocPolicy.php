@@ -45,7 +45,7 @@ class EducationalDocPolicy
      */
     public function delete(User $user, EducationalDocs $educationalDocs): bool
     {
-        return $user->role === 'Admin' || $educationalDocs->created_by === $user->id;
+        return $user->role === 'Admin' ||$user->role === 'Notaire' || $educationalDocs->created_by === $user->id;
     }
 
     /**
@@ -53,7 +53,7 @@ class EducationalDocPolicy
      */
     public function restore(User $user, EducationalDocs $educationalDocs): bool
     {
-        return $user->role === 'Admin' || $educationalDocs->created_by === $user->id;
+        return $user->role === 'Admin' ||$user->role === 'Notaire' || $educationalDocs->created_by === $user->id;
     }
 
     /**
@@ -61,6 +61,6 @@ class EducationalDocPolicy
      */
     public function forceDelete(User $user, EducationalDocs $educationalDocs): bool
     {
-        return $user->role === 'Admin' || $educationalDocs->created_by === $user->id;
+        return $user->role === 'Admin' ||$user->role === 'Notaire' || $educationalDocs->created_by === $user->id;
     }
 }

@@ -75,6 +75,7 @@ Route::middleware('auth:api')->group(function () {
 
     Route::resource('contract_templates', ContractTemplateController::class);
     Route::get('contract_templates/{id}/attributes', [ContractTemplateController::class, 'getGroups']);
+    Route::post('contract_templates/{id}/duplicate', [ContractTemplateController::class, 'duplicate']);
     Route::post('contract_templates/upload_summary', [ContractTemplateController::class, 'uploadSummary']);
     Route::delete('/contract_summary/{id}', [ContractTemplateController::class, 'deleteSummary']);
     Route::get('/users/{user}/client-details', [ContractController::class, 'getClientDetails']);

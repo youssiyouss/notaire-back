@@ -30,7 +30,7 @@ class ContractTemplateController extends Controller
 
     }
 
-  public function show(string $id)
+    public function show(string $id)
     {
         $template = ContractTemplate::with([
             'contractType',
@@ -64,7 +64,6 @@ class ContractTemplateController extends Controller
 
     public function store(Request $request)
     {
-        Log::info($request->all());
         $validated = $request->validate([
             'category_id' => 'required|exists:contract_types,id',
             'subcategory_name' => 'required|string|max:255',
@@ -386,6 +385,78 @@ class ContractTemplateController extends Controller
         $template->save();
 
         return response()->json(['message' => 'Résumé supprimé avec succès.']);
+    }
+
+
+    public function duplicate(Request $request, $id)
+    {
+        $request->validate([
+            'contract_subtype' => 'required|string|max:255|unique:contract_templates'
+        ]);
+
+        // Trouver le template d’origine avec ses relations
+        $original = ContractTemplate::with(['groups.attributes','groups.wordTransformations'])->findOrFail($id);
+        Log::info($original);
+        // Créer le nouveau template
+        $newTemplate = ContractTemplate::create([
+            'contract_type_id' => $original->contract_type_id,
+            'contract_subtype' => $request->contract_subtype, // remplacé
+            'taxe_type' => $original->taxe_type,
+            'taxe_pourcentage' => $original->taxe_pourcentage,
+            'content' => $original->content, // fichier vide
+            'created_by' => auth()->id(),
+            'original' => $original->original,
+            'copy' => $original->copy,
+            'documentation' => $original->documentation,
+            'publication' => $original->publication,
+            'consultation' => $original->consultation,
+            'consultationFee' => $original->consultationFee,
+            'workFee' => $original->workFee,
+            'others' => $original->others,
+            'stamp' => $original->stamp,
+            'registration' => $original->registration,
+            'advertisement' => $original->advertisement,
+            'rkm' => $original->rkm,
+            'announcements' => $original->announcements,
+            'deposit' => $original->deposit,
+            'boal' => $original->boal,
+            'registration_or_cancellation' => $original->registration_or_cancellation,
+        ]);
+
+        // Dupliquer les groupes
+        foreach ($original->groups as $group) {
+            Log::info($group);
+            $newGroup = TemplateGroup::create([
+                'template_id' => $newTemplate->id,
+                'name' => $group->name,
+            ]);
+
+            // Dupliquer attributs
+            foreach ($group->attributes as $attribute) {
+                Attribute::create([
+                    'group_id' => $newGroup->id,
+                    'attribute_name' => $attribute->attribute_name,
+                    'source_field' => $attribute->source_field,
+                ]);
+            }
+
+            // Dupliquer transformations
+            foreach ($group->wordTransformations as $trans) {
+                WordTransformation::create([
+                    'group_id' => $newGroup->id,
+                    'placeholder' => $trans->placeholder,
+                    'masculine' => $trans->masculine,
+                    'feminine' => $trans->feminine,
+                    'masculine_plural' => $trans->masculine_plural,
+                    'feminine_plural' => $trans->feminine_plural,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'message' => 'Contract Template duplicated successfully',
+            'template' => $newTemplate->load([ 'contractType','groups.attributes','groups.wordTransformations'])
+        ], 201);
     }
 
 }

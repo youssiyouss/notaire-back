@@ -51,6 +51,7 @@ Route::middleware('auth:api')->group(function () {
     Route::resource('users', UserController::class);
     Route::get('/users/{id}/suivi',  [UserController::class, 'suivi']);
     Route::resource('clients', ClientController::class);
+    Route::post('clients/{id}/stats',  [ClientController::class, 'clientStats']);
     Route::resource('user-documents',ClientDocumentController::class);
 
     //Route::post('/process_image', [ClientController::class, 'process_image']);

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Thiagoalessio\TesseractOCR\TesseractOCR;
 use App\Models\Client;
+use App\Models\ContractClient;
 use App\Models\User;
 use App\Models\ClientDocument;
 use Error;
@@ -21,6 +22,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\NewClientNotification;
 use App\Events\NewClient;
+use Carbon\Carbon;
+
 require_once base_path('vendor/thiagoalessio/tesseract_ocr/src/TesseractOCR.php');
 use Imagick;
 
@@ -535,4 +538,59 @@ class ClientController extends Controller
         Log::info('OCR Response:', $response->json());
         return response()->json($response->json());
     }
+
+
+    public function clientStats($clientId, Request $request)
+    {
+        $year = $request->query('year', Carbon::now()->year);
+        $lang = $request->get('lang', app()->getLocale()); // use frontend lang or fallback
+
+        // Set Carbon locale
+        Carbon::setLocale($lang);
+
+        // Get contracts for this client in the selected year
+        $contractClients = ContractClient::with('contract')
+            ->where('client_id', $clientId)
+            ->whereHas('contract', function ($q) use ($year) {
+                $q->whereYear('created_at', $year)
+                ->with('template');
+            })
+            ->get();
+
+        $contracts = $contractClients->pluck('contract')->filter();
+        $total   = $contracts->count();
+        $paid    = $contracts->where('status', 'Payé')->count();
+        $unpaid  = $contracts->where('status', 'Non Payé')->count();
+        $average = $contracts->avg('price');
+
+        // Group by type (from pivot table contract_client.type)
+        $types = $contracts->groupBy(function ($c) {
+                    return $c->template->contract_subtype;
+                })->map->count();
+
+        // Group by month
+        $monthly = $contracts->groupBy(function ($c) {
+                    return $c->created_at->translatedFormat('F');
+                })->map->count();
+
+        return response()->json([
+            'total'     => $total,
+            'paid'      => $paid,
+            'unpaid'    => $unpaid,
+            'average'   => round($average, 2),
+            'types'     => $types,
+            'monthly'   => $monthly,
+            'contracts' => $contracts->map(function ($c) {
+                return [
+                    'id'     => $c->id,
+                    'status' => $c->status,
+                    'price'  => $c->price,
+                    'date'   => $c->created_at->toDateString(),
+                    'type'   => $c->clients->first()->type ?? null, // take type from pivot
+                    'subtype'=> $c->template->contract_subtype
+                ];
+            })->values(),
+        ]);
+    }
+
 }

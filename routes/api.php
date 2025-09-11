@@ -18,6 +18,7 @@ use App\Http\Controllers\dashboard\EducationalDocController;
 use App\Http\Controllers\dashboard\EducationalVideoController;
 use App\Http\Controllers\dashboard\ChatController;
 use App\Http\Controllers\dashboard\AttendanceController;
+use App\Http\Controllers\dashboard\DashboardController;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::routes(['middleware' => ['auth:api']]);
@@ -29,10 +30,6 @@ Broadcast::routes(['middleware' => ['auth:api']]);
 Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });*/
-
-Route::get('/test-cors', function() {
-    return response()->json(['message' => 'CORS working!']);
-});
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -48,6 +45,9 @@ Route::middleware('auth:api')->get('/auth_user', function() {
 });
 
 Route::middleware('auth:api')->group(function () {
+
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+
     Route::resource('users', UserController::class);
     Route::get('/users/{id}/suivi',  [UserController::class, 'suivi']);
     Route::resource('clients', ClientController::class);

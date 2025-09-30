@@ -80,6 +80,8 @@ Route::middleware('auth:api')->group(function () {
     Route::post('contract_templates/upload_summary', [ContractTemplateController::class, 'uploadSummary']);
     Route::delete('/contract_summary/{id}', [ContractTemplateController::class, 'deleteSummary']);
     Route::get('/users/{user}/client-details', [ContractController::class, 'getClientDetails']);
+    // routes/api.php
+    Route::get('/word-transformations/search', [ContractTemplateController::class, 'searchPlaceholders']);
 
     //Liste des formulaires fiscaux
     Route::resource('impots', TaxController::class);

@@ -336,6 +336,21 @@ class ContractTemplateController extends Controller
         }
     }
 
+    public function searchPlaceholders(Request $request)
+    {
+        $placeholder = $request->query('placeholder', '');
+
+        if (!$placeholder) {
+            return response()->json([], 200);
+        }
+
+        $words = WordTransformation::where('placeholder', 'LIKE', "%{$placeholder}%")
+            ->limit(10)
+            ->get(['id','placeholder','masculine','feminine','masculine_plural','feminine_plural']);
+
+        return response()->json($words, 200);
+    }
+
     public function destroy(string $id)
     {
         try {

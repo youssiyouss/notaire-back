@@ -48,6 +48,7 @@ class DashboardController extends Controller
         // === 4. Clients per state (basic, parsing last part of address) ===
         $clientsPerState = DB::table('users')
             ->selectRaw('SUBSTRING_INDEX(adresse, ",", -1) as state, COUNT(*) as total')
+            ->where('role','Client')
             ->groupBy('state')
             ->get();
 

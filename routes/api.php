@@ -19,6 +19,7 @@ use App\Http\Controllers\dashboard\EducationalVideoController;
 use App\Http\Controllers\dashboard\ChatController;
 use App\Http\Controllers\dashboard\AttendanceController;
 use App\Http\Controllers\dashboard\DashboardController;
+use App\Http\Controllers\ContactController;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::routes(['middleware' => ['auth:api']]);
@@ -35,6 +36,9 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('sendResetPasswordLink', [AuthController::class, 'sendResetPasswordLink']);
 Route::post('resetPassword', [AuthController::class, 'resetPassword']);
+
+// Public contact form route
+Route::post('/contact', [ContactController::class, 'sendContactForm']);
 
 Route::get('/user', [AuthController::class, 'user']);
 Route::get('/verify-email/{token}', [ AuthController::class, 'verifyEmail']);

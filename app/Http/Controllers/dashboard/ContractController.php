@@ -18,7 +18,11 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 use PhpOffice\PhpWord\TemplateProcessor;
 use Illuminate\Support\Facades\File;
-use ZipArchive;
+use ZipArchive; 
+use App\Mail\DateSignatureAssigned;
+use Illuminate\Http\Response; 
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Validator;
 
 class ContractController extends Controller
 {
@@ -734,4 +738,65 @@ class ContractController extends Controller
         }
     }
 
+
+    /**
+     * Set signature date for a contract
+     */
+    public function setSignatureDate(Request $request, $contractId)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'signature_date' => 'required|date|after_or_equal:today'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'errors' => $validator->errors()
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $contract = Contract::with(['clients.client', 'notaire'])->findOrFail($contractId);
+            
+            $contract->signature_date = $request->signature_date;
+            $contract->updated_by = Auth::id();
+            $contract->save();
+
+            // Send email to all clients
+            foreach ($contract->clients as $contractClient) {
+                $client = $contractClient->client;
+                
+                if ($client && $client->email) {
+                    try {
+                        Mail::to($client->email)->send(
+                            new DateSignatureAssigned(
+                                $contract,
+                                $client->nom . ' ' . $client->prenom,
+                                \Carbon\Carbon::parse($request->signature_date)->format('d/m/Y H:i')
+                            )
+                        );
+                    } catch (\Exception $e) {
+                        Log::error('Error sending signature date email to ' . $client->email . ': ' . $e->getMessage());
+                    }
+                }
+            }
+
+            return response()->json([
+                'message' => 'Date de signature assignée avec succès',
+                'contract' => [
+                    'id' => $contract->id,
+                    'signature_date' => $contract->signature_date
+                ]
+            ], Response::HTTP_OK);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => 'Contrat non trouvé'
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\Exception $e) {
+            Log::error('Error setting signature date: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Une erreur est survenue'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 }

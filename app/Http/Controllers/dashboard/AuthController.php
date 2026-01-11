@@ -110,7 +110,7 @@ class AuthController extends Controller
                 'email' => $request->email,
                 'tel' => str_replace(' ', '', $request->tel),
                 'password' => Hash::make($request->password),
-                'role' => 'client',  // Default role for client
+                'role' => 'Client',  
             ]);
             // Create the client profile without additional info at first
             Client::create([
@@ -344,23 +344,25 @@ class AuthController extends Controller
     public function changePassword(Request $request)
     {
         try {
-            Log::info($request->all());
             if(!$request->user_id){
-                Log::info('logedin');
                 $user = Auth::guard('api')->user();
             }
             else{
-                Log::info('Client');
                 $user = User::findOrFail($request->user_id);
-            }
-            Log::info($user);
+            } 
 
-            if (!Hash::check($request->current_password, $user->password)) {
+            // Support both 'current_password' (admin) and 'password' (client) for current password
+            $currentPassword = $request->current_password ?? $request->password;
+            
+            if (!Hash::check($currentPassword, $user->password)) {
                 return response()->json(['error' => __('authController.psw_dont_match')], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
+            // Support both 'password' (when no new_password) and 'new_password' (client) for new password
+            $newPassword = $request->new_password ?? $request->password;
+
             $user->update([
-                'password' => Hash::make($request->password),
+                'password' => Hash::make($newPassword),
             ]);
 
             return response()->json(['message' => __('authController.psw_changed')], Response::HTTP_OK);

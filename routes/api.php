@@ -19,7 +19,10 @@ use App\Http\Controllers\dashboard\EducationalVideoController;
 use App\Http\Controllers\dashboard\ChatController;
 use App\Http\Controllers\dashboard\AttendanceController;
 use App\Http\Controllers\dashboard\DashboardController;
-use App\Http\Controllers\ContactController;
+use App\Http\Controllers\clientSide\ContactController;
+use App\Http\Controllers\clientSide\ClientDocumentController as ClientSideDocumentController;
+use App\Http\Controllers\clientSide\ClientContractController as ClientSideContractController;
+use App\Http\Controllers\dashboard\ContractProgressController;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::routes(['middleware' => ['auth:api']]);
@@ -45,8 +48,10 @@ Route::get('/verify-email/{token}', [ AuthController::class, 'verifyEmail']);
 Route::post('/verification/resend/', [AuthController::class, 'resendVerificationEmail']);
 Route::post('/change-password', [AuthController::class, 'changePassword']);
 Route::middleware('auth:api')->get('/auth_user', function() {
-    return response()->json(['user' => Auth::user()]);
+    return response()->json(['user' => Auth::user()->load('client')]);
 });
+Route::middleware('auth:api')->put('/user/profile', [UserController::class, 'updateProfile']);
+Route::middleware('auth:api')->post('/user/profile/picture', [UserController::class, 'updateProfilePicture']);
 
 Route::middleware('auth:api')->group(function () {
 
@@ -66,6 +71,18 @@ Route::middleware('auth:api')->group(function () {
 
     Route::resource('contracts', ContractController::class);
     Route::get('/contracts/{contract}/summarize', [ContractController::class,  'summarize']);
+
+    // Contract Progress Management
+    Route::prefix('contracts/{contractId}/progress')->group(function () {
+        Route::get('/', [ContractProgressController::class, 'index']); // Get progress steps
+        Route::post('/initialize', [ContractProgressController::class, 'initializeSteps']); // Initialize default steps
+        Route::put('/steps/{stepId}', [ContractProgressController::class, 'updateStep']); // Update specific step
+        Route::put('/', [ContractProgressController::class, 'updateSteps']); // Bulk update all steps
+        Route::post('/advance', [ContractProgressController::class, 'advanceToNextStep']); // Auto-advance to next step
+    });
+
+    // Contract Signature Date
+    Route::post('/contracts/{contractId}/signature-date', [ContractController::class, 'setSignatureDate']);
 
     Route::prefix('contract-attributes')->group(function () {
         Route::post('/', [ContractAttributesController::class, 'store']); // Add attributes
@@ -151,6 +168,15 @@ Route::middleware('auth:api')->group(function () {
     Route::resource('attendances', AttendanceController::class);
     Route::get('/attendances/{id}/get',  [AttendanceController::class, 'getAttendances']);
 
-
 });
 
+// Client Side Routes
+Route::middleware('auth:api')->prefix('client')->group(function () {
+    Route::get('/documents', [ClientSideDocumentController::class, 'index']);
+    Route::post('/documents', [ClientSideDocumentController::class, 'store']);
+    Route::delete('/documents/{id}', [ClientSideDocumentController::class, 'destroy']);
+    Route::get('/documents/{id}/download', [ClientSideDocumentController::class, 'download']);
+    
+    Route::get('/contracts', [ClientSideContractController::class, 'index']);
+    Route::get('/contracts/{id}', [ClientSideContractController::class, 'show']);
+});

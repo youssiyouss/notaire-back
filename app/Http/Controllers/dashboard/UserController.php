@@ -80,7 +80,7 @@ class UserController extends Controller
                 'tel' => 'required|regex:/^\+?[0-9]\d{0,14}$/|unique:users',
                 'adresse' =>'required|string|max:600',
                 'password' => 'required|string|min:8|confirmed',
-                'sexe'=>'required|',
+                'sexe'=>'required|in:male,female',
                 'date_de_naissance'=>'required|date',
                 'role'=>'required|string',
                 'ccp'=>'nullable|string',
@@ -166,7 +166,7 @@ class UserController extends Controller
             'email' => 'nullable|string|email|max:255|unique:users,email,' . $id,
             'tel' => 'nullable|regex:/^\+?[0-9]\d{0,14}$/|max:20|unique:users,tel,' . $id, // Allow updating the phone number for the specific user
             'adresse' =>'required|string|max:600',
-            'sexe'=>'required|',
+            'sexe'=>'required|in:male,female',
             'date_de_naissance'=>'required|date',
             'role'=>'nullable|string',
             'ccp'=>'nullable|string',
@@ -264,5 +264,111 @@ class UserController extends Controller
                 'performance' => $preformance
             ]);
 
+    }
+
+    public function updateProfile(Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            $validator = Validator::make($request->all(), [
+                'nom' => 'required|string|max:255',
+                'prenom' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email,' . $user->id,
+                'tel' => 'required|regex:/^\+?[0-9]\d{0,14}$/|unique:users,tel,' . $user->id,
+                'adresse' => 'nullable|string|max:255',
+                'sexe' => 'nullable||in:male,female',
+                'date_de_naissance' => 'nullable|date',
+                'nationalite' => 'nullable|string|max:255',
+                'lieu_de_naissance' => 'nullable|string|max:255',
+                'nom_maternelle' => 'nullable|string|max:255',
+                'prenom_mere' => 'nullable|string|max:255',
+                'prenom_pere' => 'nullable|string|max:255',
+                'emploi' => 'nullable|string|max:255',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            // Update user basic fields
+            $user->update([
+                'nom' => $request->nom,
+                'prenom' => $request->prenom,
+                'email' => $request->email,
+                'tel' => $request->tel,
+                'adresse' => $request->adresse,
+                'sexe' => $request->sexe,
+                'date_de_naissance' => $request->date_de_naissance,
+            ]);
+
+            // Update or create client record
+            if ($user->client) {
+                $user->client->update([
+                    'nationalite' => $request->nationalite,
+                    'lieu_de_naissance' => $request->lieu_de_naissance,
+                    'nom_maternelle' => $request->nom_maternelle,
+                    'prenom_mere' => $request->prenom_mere,
+                    'prenom_pere' => $request->prenom_pere,
+                    'emploi' => $request->emploi,
+                ]);
+            } else {
+                $user->client()->create([
+                    'nationalite' => $request->nationalite,
+                    'lieu_de_naissance' => $request->lieu_de_naissance,
+                    'nom_maternelle' => $request->nom_maternelle,
+                    'prenom_mere' => $request->prenom_mere,
+                    'prenom_pere' => $request->prenom_pere,
+                    'emploi' => $request->emploi,
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Profile updated successfully',
+                'user' => $user->load('client')
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Profile update error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateProfilePicture(Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            $validator = Validator::make($request->all(), [
+                'picture' => 'required|image|mimes:jpeg,png,jpg,gif|max:2500', // 2.5MB max
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            // Delete old picture if exists and is not default
+            if ($user->picture && $user->picture !== 'assets/images/default_avatar.png') {
+                Storage::disk('public')->delete($user->picture);
+            }
+
+            // Store new picture
+            $file = $request->file('picture');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path = $file->storeAs('avatars', $filename, 'public');
+
+            // Update user picture
+            $user->picture = $path;
+            $user->save();
+
+            return response()->json([
+                'message' => 'Photo de profil mise à jour avec succès',
+                'picture' => $path
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Profile picture update error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }

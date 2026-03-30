@@ -13,3 +13,27 @@ Broadcast::channel('clients', function ($user) {
 Broadcast::channel('chat.{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId;
 });
+
+/*
+|--------------------------------------------------------------------------
+| Presence channel for client support availability
+|--------------------------------------------------------------------------
+| - Clients can only join their own support presence room.
+| - Support/admin users (role !== 'Client') can join any client room.
+| - Returning an array is required for presence channels so members are
+|   visible to each other with lightweight profile info.
+*/
+Broadcast::channel('support.presence.{clientId}', function ($user, $clientId) {
+    $isSameClient = (int) $user->id === (int) $clientId;
+    $isSupportUser = $user->role !== 'Client';
+
+    if (!($isSameClient || $isSupportUser)) {
+        return false;
+    }
+
+    return [
+        'id' => (int) $user->id,
+        'name' => trim(($user->nom ?? '') . ' ' . ($user->prenom ?? '')),
+        'role' => $user->role,
+    ];
+});

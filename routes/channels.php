@@ -16,6 +16,21 @@ Broadcast::channel('chat.{userId}', function ($user, $userId) {
 
 /*
 |--------------------------------------------------------------------------
+| Global users presence channel
+|--------------------------------------------------------------------------
+| All authenticated users can join this room. Frontend uses membership to
+| display online/offline badges in contacts/conversations lists.
+*/
+Broadcast::channel('users.presence', function ($user) {
+    return [
+        'id' => (int) $user->id,
+        'name' => trim(($user->nom ?? '') . ' ' . ($user->prenom ?? '')),
+        'role' => $user->role,
+    ];
+});
+
+/*
+|--------------------------------------------------------------------------
 | Presence channel for client support availability
 |--------------------------------------------------------------------------
 | - Clients can only join their own support presence room.

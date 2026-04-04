@@ -253,7 +253,7 @@ class ClientController extends Controller
     {
         $request->validate([
             'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
-            'document_type' => 'required|in:carte_identite,permis,act_naissance,residance,passport',
+            'document_type' => 'required|in:carte_identite,permis,act_naissance,residance,passport,nationalite',
         ]);
 
         if (!$request->hasFile('image')) {

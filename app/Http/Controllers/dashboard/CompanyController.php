@@ -204,7 +204,7 @@ class CompanyController extends Controller
                 ->orWhere('tel', 'like', "%$query%");
             })
             ->select('id', 'nom', 'prenom', 'email', 'date_de_naissance', 'picture')
-            ->limit(10)
+            ->limit(20)
             ->get();
 
         return response()->json($users);

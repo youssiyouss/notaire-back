@@ -73,7 +73,7 @@ class EducationalDocController extends Controller
                     'key' => $content->title,
                     'params' => ['doc_title' => $content->title],
                 ];
-                $link = 'docs-educationnel/' . $content->id;
+                $link = 'docs-educationnel';
                 if($content->audience == "Employé"){
                     $notifiables = User::where('role', '!=', 'Client')->get();
                 }

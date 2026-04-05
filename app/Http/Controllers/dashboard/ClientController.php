@@ -74,7 +74,8 @@ class ClientController extends Controller
             'adresse' => 'nullable|string|max:255',
             'password' => 'required|string|min:8',
             'sexe' => 'required|in:male,female',
-            'date_de_naissance' => 'required|date',
+            'date_de_naissance' => 'nullable|date|required_without:birth_year',
+            'birth_year' => 'nullable|integer|digits:4|min:1900|max:' . date('Y') . '|required_without:date_de_naissance',
             'role' => 'required|string',
             'nationalite' => 'required|string|max:100',
             'lieu_de_naissance' => 'required|string|max:255',
@@ -100,6 +101,7 @@ class ClientController extends Controller
                 'password' => Hash::make($request->password),
                 'sexe' => $request->sexe,
                 'date_de_naissance' => $request->date_de_naissance,
+                'birth_year' => $request->birth_year,
                 'role' => $request->role,
                 'created_by' => auth()->id()
             ]);
@@ -173,7 +175,8 @@ class ClientController extends Controller
             'tel' => 'nullable|regex:/^\+?[0-9]\d{0,14}$/|max:20|unique:users,tel,' . $id,
             'adresse' => 'nullable|string|max:255',
             'sexe' => 'required|in:male,female',
-            'date_de_naissance' => 'required|date',
+            'date_de_naissance' => 'nullable|date|required_without:birth_year',
+            'birth_year' => 'nullable|integer|digits:4|min:1900|max:' . date('Y') . '|required_without:date_de_naissance',
             'role' => 'required|string',
             'nationalite' => 'required|string|max:100',
             'lieu_de_naissance' => 'required|string|max:255',
@@ -196,6 +199,7 @@ class ClientController extends Controller
             'adresse' => $request->adresse,
             'sexe' => $request->sexe,
             'date_de_naissance' => $request->date_de_naissance,
+            'birth_year' => $request->birth_year,
             'updated_by' => auth()->id()
         ]);
 

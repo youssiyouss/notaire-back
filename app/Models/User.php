@@ -39,6 +39,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'password',
         'sexe',
         'date_de_naissance',
+        'birth_year',
         'role',
         'ccp',
         'salaire',
@@ -66,6 +67,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'birth_year' => 'integer',
             'password' => 'hashed',
         ];
     }

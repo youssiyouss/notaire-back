@@ -712,6 +712,23 @@ class ContractController extends Controller
                             }
                         }
 
+                        // Ensure injected text uses Times New Roman
+                        $rPrNode = $xpath->query('./w:rPr', $newR)->item(0);
+                        if (!$rPrNode) {
+                            $rPrNode = $dom->createElementNS($wNs, 'w:rPr');
+                            $newR->insertBefore($rPrNode, $newR->firstChild);
+                        }
+
+                        $rFonts = $xpath->query('./w:rFonts', $rPrNode)->item(0);
+                        if (!$rFonts) {
+                            $rFonts = $dom->createElementNS($wNs, 'w:rFonts');
+                            $rPrNode->appendChild($rFonts);
+                        }
+                        $rFonts->setAttributeNS($wNs, 'w:ascii', 'Times New Roman');
+                        $rFonts->setAttributeNS($wNs, 'w:hAnsi', 'Times New Roman');
+                        $rFonts->setAttributeNS($wNs, 'w:cs', 'Times New Roman');
+                        $rFonts->setAttributeNS($wNs, 'w:eastAsia', 'Times New Roman');
+
                         $newT = $dom->createElementNS($wNs, 'w:t', htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
                         $newT->setAttribute('xml:space', 'preserve');
                         $newR->appendChild($newT);
@@ -721,6 +738,28 @@ class ContractController extends Controller
                     \Log::error("Failed processing bookmark '{$name}': " . $e->getMessage());
                     continue; // Skip this bookmark but continue with others
                 }
+            }
+
+            // Force Times New Roman as default for all runs in body document.
+            $allRuns = $xpath->query('//w:r');
+            foreach ($allRuns as $run) {
+                $wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+                $rPrNode = $xpath->query('./w:rPr', $run)->item(0);
+                if (!$rPrNode) {
+                    $rPrNode = $dom->createElementNS($wNs, 'w:rPr');
+                    $run->insertBefore($rPrNode, $run->firstChild);
+                }
+
+                $rFonts = $xpath->query('./w:rFonts', $rPrNode)->item(0);
+                if (!$rFonts) {
+                    $rFonts = $dom->createElementNS($wNs, 'w:rFonts');
+                    $rPrNode->appendChild($rFonts);
+                }
+
+                $rFonts->setAttributeNS($wNs, 'w:ascii', 'Times New Roman');
+                $rFonts->setAttributeNS($wNs, 'w:hAnsi', 'Times New Roman');
+                $rFonts->setAttributeNS($wNs, 'w:cs', 'Times New Roman');
+                $rFonts->setAttributeNS($wNs, 'w:eastAsia', 'Times New Roman');
             }
 
             // Save back with UTF-8 encoding
